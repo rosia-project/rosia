@@ -197,9 +197,7 @@ class Node:
         for input_port in self.input_port_infos.values():
             for output_port in input_port.upstream_ports:
                 if output_port.name in output_port_to_sta.keys():
-                    output_port.set_next_timestamp(
-                        output_port_to_sta[output_port.name]
-                    )
+                    output_port.set_next_timestamp(output_port_to_sta[output_port.name])
                     self.logger.debug(
                         f"Set safe to advance time for output port {output_port.name} to {output_port_to_sta[output_port.name]}"
                     )
