@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rosia"
-version = "0.0.1"
+version = "0.0.4"
 authors = [
   { name="depetrol", email="depetrol@outlook.com" },
 ]
@@ -21,6 +21,13 @@ license-files = ["LICEN[CS]E*"]
 dependencies = [
     "pyzmq",
     "cloudpickle",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+    "twine",
+    "build",
 ]
 
 [project.urls]

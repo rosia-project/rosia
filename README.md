@@ -2,7 +2,7 @@
 
 ## Install
 ```bash
-pip install -e .
+pip install rosia
 ```
 
 ## Quick Start
@@ -104,10 +104,20 @@ When we execute this example with `python tests/examples/parallel_timed.py`, not
 
 
 ## Contributing
+### Install Dev Dependencies
+```bash
+pip install --group dev .
+```
+
 ### Install Pre-commit Hooks
 ```bash
-pip install pre-commit
 pre-commit install --hook-type commit-msg --hook-type pre-push --hook-type pre-commit
 pre-commit run --all-files
 ```
 Code is automatically formatted before committing. Commit messages should follow conventional commit.
+
+### Distribution Archives
+```bash
+python -m build
+python -m twine upload dist/*
+```
