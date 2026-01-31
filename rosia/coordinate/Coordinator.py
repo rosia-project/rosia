@@ -5,7 +5,7 @@ from rosia.comms.transports import Transport
 from rosia.coordinate.Node import Node
 from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
 from rosia.coordinate.messages.base import Message
-from rosia.execute.Executor import Executor
+from rosia.execute import ExecutorController
 from dataclasses import dataclass
 import logging
 
@@ -15,7 +15,7 @@ T = TypeVar("T")
 @dataclass
 class NodeInfo:
     node: Node
-    executor: Optional[Executor]
+    executor: Optional[ExecutorController]
     input_endpoints: Dict[str, str]
 
 
@@ -50,7 +50,7 @@ class Coordinator:
 
     def execute(self) -> None:
         for name, node_info in self.node_infos.items():
-            executor = Executor(node_info.node)
+            executor = ExecutorController(node_info.node)
             node_info.executor = executor
             node_info.executor.call("_init_input_transports")
 

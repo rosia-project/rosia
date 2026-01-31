@@ -7,7 +7,7 @@ from rosia.coordinate.Port import (
 )
 from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
 from rosia.coordinate.messages.base import Message
-from rosia.execute import Executor
+from rosia.execute import ExecutorController
 from rosia.frontend.Node import NodeInitArgs
 from rosia.frontend.Port import (
     InputPort as UserInputPort,
@@ -46,7 +46,7 @@ class Node:
         self.node_name = node_name
         self.log_level = log_level
         self._setup_logger(log_level)
-        self.executor: Executor
+        self.executor: ExecutorController
 
         self.serializer_cls: Type[SerializerBase]
         self.transport_cls: Type[TransportBase]
