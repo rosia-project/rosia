@@ -3,7 +3,7 @@ from rosia.comms.Types import ClientType
 from rosia.comms.serializers import Serializer
 from rosia.comms.transports import Transport
 from rosia.coordinate.Node import Node
-from rosia.coordinate.Port import InputPortConnector, OutputPortConnector
+from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
 from rosia.coordinate.messages.base import Message
 from rosia.execute.Executor import Executor
 from dataclasses import dataclass

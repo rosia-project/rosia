@@ -2,12 +2,10 @@ from rosia.comms.Types import ClientType
 from rosia.comms.transports import Transport, TransportBase
 from rosia.comms.serializers import Serializer, SerializerBase
 from rosia.coordinate.Port import (
-    InputPortConnector,
-    OutputPortConnector,
     InputPortRuntimeObj,
     OutputPortRuntimeObj,
 )
-
+from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
 from rosia.coordinate.messages.base import Message
 from rosia.execute import Executor
 from rosia.frontend.Node import NodeInitArgs
