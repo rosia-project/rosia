@@ -6,14 +6,14 @@ from rosia.time.Timer import Timer
 @Node
 class IntGenerator:
     input_port = InputPort[Time]()
-    output_port = OutputPort[int]()
+    output_port = OutputPort[Time]()
 
     def __init__(self):
         self.number = 0
 
     @reaction([input_port])
     def process_input(self):
-        self.output_port(self.number)
+        self.output_port(self.input_port)
         self.number += 1
 
 

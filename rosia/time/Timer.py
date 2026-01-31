@@ -1,10 +1,10 @@
-from rosia.frontend import OutputPort, Node, Rosia
+from rosia.frontend import OutputPort, Node
 from rosia.time import Time
 import time
 
 
 @Node
-class Timer(Rosia):
+class Timer:
     output_timer = OutputPort[Time]()
 
     def __init__(self, interval: Time, offset: Time = Time(0)):

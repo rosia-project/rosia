@@ -12,7 +12,6 @@ from rosia.frontend.Node import NodeInitArgs
 from rosia.frontend.Port import (
     InputPort as UserInputPort,
     OutputPort as UserOutputPort,
-    InjectedRosia,
 )
 
 from typing import Any, Dict, Optional, Tuple, Type, TypeVar, List
@@ -118,7 +117,6 @@ class Node:
 
         setattr(self.node_cls, "__init__", stub_init)
         self.node_instance = self.node_cls()
-        setattr(self.node_instance, "rosia", InjectedRosia(self.logger, self.node_name))
 
     def _setup_logger(self, log_level) -> None:
         self.logger = logging.getLogger(f"{self.node_name}")

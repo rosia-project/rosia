@@ -1,11 +1,11 @@
-from rosia import InputPort, OutputPort, reaction, Node, Rosia, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia.time import Time, ms
 from rosia.time.Timer import Timer
 import logging
 
 
 @Node
-class IntGenerator(Rosia):
+class IntGenerator:
     timer = InputPort[Time]()
     output = OutputPort[int]()
 

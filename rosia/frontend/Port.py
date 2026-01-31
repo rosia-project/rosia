@@ -1,20 +1,9 @@
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, TYPE_CHECKING
-import logging
 
 if TYPE_CHECKING:
     from rosia.time import Time
 
 T = TypeVar("T")
-
-
-class InjectedRosia:
-    def __init__(self, logger: logging.Logger, name: str) -> None:
-        self.logger = logger
-        self.name = name
-
-
-class Rosia:
-    rosia: InjectedRosia
 
 
 class InputPort(Generic[T]):

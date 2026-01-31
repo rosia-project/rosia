@@ -1,11 +1,11 @@
-from rosia import InputPort, OutputPort, reaction, Node, Rosia, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia.time import Time, ms, s
 from rosia.time.Timer import Timer
 import logging
 
 
 @Node
-class IntGenerator(Rosia):
+class IntGenerator:
     timer = InputPort[Time]()
     output = OutputPort[int]()
 
@@ -19,7 +19,7 @@ class IntGenerator(Rosia):
 
 
 @Node
-class Printer(Rosia):
+class Printer:
     input_int1 = InputPort[int]()
     input_int2 = InputPort[int]()
 
@@ -28,7 +28,7 @@ class Printer(Rosia):
         assert self.input_int1 == self.input_int2, (
             "Input ports should have the same value"
         )
-        self.rosia.logger.info(f"Received message: {self.input_int1} {self.input_int2}")
+        print(f"Received message: {self.input_int1} {self.input_int2}")
 
 
 if __name__ == "__main__":
