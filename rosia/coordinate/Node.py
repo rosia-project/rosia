@@ -13,8 +13,9 @@ from rosia.frontend.Annotators import RosiaAnnotations, check_rosia_annotations
 from typing import Any, Dict, Optional, Tuple, Type, TypeVar, List
 import traceback
 import sys
-
+import logging
 from rosia.time import Time, forever
+import rosia
 
 T = TypeVar("T")
 
@@ -29,6 +30,7 @@ class NodeRuntime:
     ) -> None:
         check_rosia_annotations(rosia_annotations)
         node_cls = rosia_annotations["original_cls"]
+
         self.node_cls = clone_class_detached(
             node_cls, f"{node_cls.__name__}NodeRuntime"
         )
@@ -96,18 +98,11 @@ class NodeRuntime:
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
 
-    def __setstate__(self, state: Dict[str, Any]) -> None:
-        self.__dict__.update(state)
-
-    def init_input_transports(self) -> None:
+    def init_remote(self) -> Dict[str, str]:
         self.transport = self.transport_cls(ClientType.RECEIVER, self.serializer_cls)
+        rosia.log.set_logger(logging.getLogger(f"{self.node_name}"))  # type: ignore
         for name, input_port in self.input_port_connectors.items():
             input_port.port_type = ClientType.RECEIVER
-
-    def get_input_transport_endpoint_dict(self) -> Dict[str, str]:
-        # Return a single endpoint for the node (all input ports share the same endpoint)
-        if self.transport is None:
-            raise RuntimeError("Transport not initialized")
         node_endpoint = self.transport.endpoint
         return {name: node_endpoint for name in self.input_port_connectors.keys()}
 
@@ -274,3 +269,4 @@ class NodeRuntime:
         except Exception as e:
             print(f"Exception in {self.node_name}: {e}")
             traceback.print_exc()
+            sys.exit(1)

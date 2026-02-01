@@ -17,7 +17,6 @@ T = TypeVar("T")
 class NodeRuntimeInfo:
     node: NodeRuntime
     executor: Optional[ExecutorController]
-    input_endpoints: Dict[str, str]
 
 
 class Coordinator:
@@ -36,24 +35,15 @@ class Coordinator:
             rosia_annotations=rosia_annotations,
             node_name=node_name,
         )
-        self.node_infos[node_name] = NodeRuntimeInfo(
-            node=node_runtime, executor=None, input_endpoints={}
-        )
+        self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         return cast(T, node_runtime)
 
     def execute(self) -> None:
+        # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)
             node_info.executor = executor
-            node_info.executor.call("init_input_transports")
-
-        # Collect input endpoints and update upstream outputs
-        for name, node_info in self.node_infos.items():
-            assert node_info.executor is not None
-            input_endpoints = node_info.executor.call(
-                "get_input_transport_endpoint_dict"
-            )
-            node_info.input_endpoints = input_endpoints
+            input_endpoints = node_info.executor.call("init_remote")
             self.input_endpoints.update(input_endpoints)
 
         # Update Node copy of input endpoints
