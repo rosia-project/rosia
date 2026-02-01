@@ -6,16 +6,20 @@ from rosia.coordinate.Port import (
     OutputPortRuntimeObj,
 )
 from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
-from rosia.coordinate.messages.base import Message
+from rosia.coordinate.messages.base import Message, MessageBase
 from rosia.frontend.Port import InputPort, OutputPort
 from rosia.utils import clone_class_detached, empty_function
 from rosia.frontend.Annotators import RosiaAnnotations, check_rosia_annotations
-from typing import Any, Dict, Optional, Tuple, Type, TypeVar, List
+from typing import Any, Dict, Optional, Type, TypeVar, List
 import traceback
 import sys
 import logging
 from rosia.time import Time, forever
 import rosia
+from rosia.coordinate.messages.base import (
+    ShutdownMessage,
+    CoordinatorShutdownRequestMessage,
+)
 
 T = TypeVar("T")
 
@@ -25,11 +29,13 @@ class NodeRuntime:
         self,
         rosia_annotations: RosiaAnnotations,
         node_name: str,
+        coordinator_receiver_endpoint: str,
         transport_cls: Type[TransportBase] = Transport,
         serializer_cls: Type[SerializerBase] = Serializer,
     ) -> None:
         check_rosia_annotations(rosia_annotations)
         node_cls = rosia_annotations["original_cls"]
+        self.coordinator_receiver_endpoint = coordinator_receiver_endpoint
 
         self.node_cls = clone_class_detached(
             node_cls, f"{node_cls.__name__}NodeRuntime"
@@ -41,7 +47,7 @@ class NodeRuntime:
         self.serializer_cls: Type[SerializerBase] = serializer_cls
         self.transport_cls: Type[TransportBase] = transport_cls
 
-        self.transport: Optional[TransportBase] = None
+        self.transport: TransportBase
         self.input_port_connectors: Dict[str, InputPortConnector[Any]] = {}
         self.output_port_connectors: Dict[str, OutputPortConnector[Any]] = {}
 
@@ -50,9 +56,7 @@ class NodeRuntime:
         self.safe_to_advance_time: Time = Time(
             0
         )  # Safe to advance time to any current_time < safe_to_advance_time
-        self.message_queue: Dict[
-            Time, List[Tuple[Message[Any], InputPortConnector[Any]]]
-        ] = {}
+        self.message_queue: Dict[Time, List[MessageBase[Any]]] = {}
 
         for name, value in self.node_cls.__dict__.items():
             if isinstance(value, OutputPort):
@@ -103,10 +107,9 @@ class NodeRuntime:
         rosia.log.set_logger(logging.getLogger(f"{self.node_name}"))  # type: ignore
         for name, input_port in self.input_port_connectors.items():
             input_port.port_type = ClientType.RECEIVER
-        node_endpoint = self.transport.endpoint
-        return {name: node_endpoint for name in self.input_port_connectors.keys()}
+        return {self.node_name: self.transport.endpoint}
 
-    def init_output_transports(self, intput_endpoints: Dict[str, str]) -> None:
+    def init_output_transports(self, node_endpoints: Dict[str, str]) -> None:
         downstream_nodes: Dict[str, List[InputPortConnector[Any]]] = {}
         for name, output_port in self.output_port_connectors.items():
             for downstream_port in output_port.downstream_ports:
@@ -116,20 +119,17 @@ class NodeRuntime:
                 downstream_nodes[downstream_node_name].append(downstream_port)
 
         for node_name, ports_list in downstream_nodes.items():
-            first_port = ports_list[0]
-            if first_port.name not in intput_endpoints:
-                raise ValueError(f"Input endpoint for {first_port.name} not found")
-            node_endpoint = intput_endpoints[first_port.name]
-
-            node_transport = self.transport_cls(
+            if node_name not in node_endpoints:
+                raise ValueError(f"Node endpoint for {node_name} not found")
+            node_endpoint = node_endpoints[node_name]
+            sender_transport = self.transport_cls(
                 ClientType.SENDER,
                 self.serializer_cls,
                 node_endpoint,
             )
-
             for downstream_port in ports_list:
                 downstream_port.port_type = ClientType.SENDER
-                downstream_port.transport = node_transport
+                downstream_port.transport = sender_transport
 
     def init_node_instance(self) -> None:
         setattr(self.node_instance, "__init__", self.node_original_init)
@@ -137,6 +137,10 @@ class NodeRuntime:
             raise RuntimeError(
                 f"Node init args are not set for node {self.node_name}. This is a bug within the Rosia framework."
             )
+        rosia.node_runtime_instance = self
+        self.coordinator_receiver_transport = Transport(
+            ClientType.SENDER, Serializer, self.coordinator_receiver_endpoint
+        )
         self.node_instance.__init__(
             self.node_instance, *self.node_init_args.args, **self.node_init_args.kwargs
         )
@@ -174,26 +178,25 @@ class NodeRuntime:
             )
         self.safe_to_advance_time = min_safe_to_advance_time
 
-    def event_loop(self) -> None:
-        if self.transport is None:
-            raise RuntimeError("Transport not initialized")
-        while True:
-            while True:
-                message: Optional[Message[Any]] = self.transport.receive()
-                if message is None:
-                    break
+    def process_messages(self) -> None:
+        while True:  # Empty the message queue
+            message: Optional[Message[Any]] = self.transport.receive()
+            if message is None:
+                break
 
+            if isinstance(message, ShutdownMessage):
+                shutdown_timestamp = message.timestamp
+                self.message_queue[shutdown_timestamp] = [message]  # type: ignore
+                continue
+            elif isinstance(message, Message):
                 # Demux message to the correct input port based on to_port
                 if message.to_port is None:
                     raise ValueError(f"Message missing to_port field: {message}")
-
                 if message.to_port not in self.input_port_connectors:
                     raise ValueError(
                         f"Message to_port {message.to_port} not found in node {self.node_name}"
                     )
-
                 input_port = self.input_port_connectors[message.to_port]
-
                 if message.timestamp is None and message.next_timestamp is None:
                     # This is untimestamped message, we process it immediately
                     input_port.set_value(message)
@@ -212,49 +215,65 @@ class NodeRuntime:
                         input_port.update_safe_to_advance_time()
                 if message.timestamp is not None:
                     if message.timestamp not in self.message_queue:
-                        self.message_queue[message.timestamp] = [(message, input_port)]
+                        self.message_queue[message.timestamp] = [message]
                     else:
-                        self.message_queue[message.timestamp].append(
-                            (message, input_port)
-                        )
+                        self.message_queue[message.timestamp].append(message)
                 else:
                     # it is simply a coordination message to update the STA
                     pass
-
-            self.update_safe_to_advance_time()
-
-            ready_timestamps = [
-                timestamp
-                for timestamp in self.message_queue.keys()
-                if timestamp < self.safe_to_advance_time
-            ]
-            ready_timestamps.sort()
-            for i in range(len(ready_timestamps)):
-                timestamp = ready_timestamps[i]
-                self.current_time = timestamp
-                self.next_time = (
-                    ready_timestamps[i + 1]
-                    if i < len(ready_timestamps) - 1
-                    else self.safe_to_advance_time
+            else:
+                raise ValueError(
+                    f"Unexpected message type: [{type(message)}] {message}"
                 )
-                messages_and_input_ports = self.message_queue[timestamp]
-                trigger_functions = set()
-                # Sort messages by from_port to avoid nondeterministic behavior
-                sorted_messages_and_input_ports = sorted(
-                    messages_and_input_ports, key=lambda x: x[0].from_port
-                )
-                affected_output_ports: List[OutputPortConnector[Any]] = []
-                for message, input_port in sorted_messages_and_input_ports:
-                    input_port.set_value(message)
-                    affected_output_ports.extend(input_port.affected_output_ports)
-                    trigger_functions.update(input_port.trigger_functions)
-                for trigger_function in trigger_functions:
-                    trigger_function(self.node_instance)
-                for output_port in affected_output_ports:
-                    # The output may not be set by the user code, but we need to update the downstream STA
-                    output_port._set_value(None, None, self.next_time)
-                del self.message_queue[timestamp]
 
+        self.update_safe_to_advance_time()
+
+        ready_timestamps = [
+            timestamp
+            for timestamp in self.message_queue.keys()
+            if timestamp < self.safe_to_advance_time
+        ]
+        ready_timestamps.sort()
+        for i in range(len(ready_timestamps)):
+            timestamp = ready_timestamps[i]
+            self.current_time = timestamp
+            self.next_time = (
+                ready_timestamps[i + 1]
+                if i < len(ready_timestamps) - 1
+                else self.safe_to_advance_time
+            )
+            messages = self.message_queue[timestamp]
+            trigger_functions = set()
+            # Sort messages by from_port to avoid nondeterministic behavior
+            sorted_messages = sorted(
+                messages,
+                key=lambda x: x.timestamp if x.timestamp is not None else forever,
+            )
+            affected_output_ports: List[OutputPortConnector[Any]] = []
+            for msg in sorted_messages:
+                if isinstance(msg, ShutdownMessage):
+                    if hasattr(self.node_instance, "shutdown"):
+                        self.node_instance.shutdown()
+                        sys.exit(0)
+                    else:
+                        sys.exit(0)
+            for msg in sorted_messages:
+                if not isinstance(msg, Message):
+                    raise ValueError(f"Unexpected message type: [{type(msg)}] {msg}")
+                input_port = self.input_port_connectors[msg.to_port]
+                input_port.set_value(msg)
+                affected_output_ports.extend(input_port.affected_output_ports)
+                trigger_functions.update(input_port.trigger_functions)
+            for trigger_function in trigger_functions:
+                trigger_function(self.node_instance)
+            for output_port in affected_output_ports:
+                # The output may not be set by the user code, but we need to update the downstream STA
+                output_port._set_value(None, None, self.next_time)
+            del self.message_queue[timestamp]
+
+    def event_loop(self) -> None:
+        while True:
+            self.process_messages()
             # Blocking wait for messages on the single node transport
             self.transport.wait_for_message()
 
@@ -270,3 +289,8 @@ class NodeRuntime:
             print(f"Exception in {self.node_name}: {e}")
             traceback.print_exc()
             sys.exit(1)
+
+    def request_shutdown(self, delay: Time = Time(0)) -> None:
+        self.coordinator_receiver_transport.send(
+            CoordinatorShutdownRequestMessage(delay)
+        )

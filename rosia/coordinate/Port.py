@@ -65,4 +65,5 @@ class OutputPortRuntimeObj(Generic[T]):
             )
             timestamp = self.node_runtime.current_time
             next_timestamp = self.node_runtime.next_time
+        self.node_runtime.process_messages()
         self.output_port_connector._set_value(value, timestamp, next_timestamp)

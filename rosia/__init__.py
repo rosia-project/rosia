@@ -6,3 +6,7 @@ from rosia.frontend import (
 )
 from rosia.coordinate import Coordinator as Coordinator
 from rosia.logging import logger as logger, log as log
+from rosia.coordinate import request_shutdown as request_shutdown
+
+# Monkey patches
+node_runtime_instance = None

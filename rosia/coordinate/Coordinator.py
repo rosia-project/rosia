@@ -4,11 +4,12 @@ from rosia.comms.serializers import Serializer
 from rosia.comms.transports import Transport
 from rosia.coordinate.Node import NodeRuntime
 from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
-from rosia.coordinate.messages.base import Message
+from rosia.coordinate.messages.base import Message, ShutdownMessage
 from rosia.execute import ExecutorController
 from dataclasses import dataclass
 import logging
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
+from rosia.coordinate.messages.base import CoordinatorShutdownRequestMessage
 
 T = TypeVar("T")
 
@@ -22,8 +23,9 @@ class NodeRuntimeInfo:
 class Coordinator:
     def __init__(self) -> None:
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
-        self.input_endpoints: Dict[str, str] = {}
+        self.node_endpoints: Dict[str, str] = {}
         self.logger = logging.getLogger("Coordinator")
+        self.coordinator_receiver_transport = Transport(ClientType.RECEIVER, Serializer)
 
     def create_node(self, node_cls: T) -> T:
         rosia_annotations = get_rosia_annotations(node_cls)
@@ -34,6 +36,7 @@ class Coordinator:
         node_runtime = NodeRuntime(
             rosia_annotations=rosia_annotations,
             node_name=node_name,
+            coordinator_receiver_endpoint=self.coordinator_receiver_transport.endpoint,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         return cast(T, node_runtime)
@@ -43,13 +46,13 @@ class Coordinator:
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)
             node_info.executor = executor
-            input_endpoints = node_info.executor.call("init_remote")
-            self.input_endpoints.update(input_endpoints)
+            node_endpoints = node_info.executor.call("init_remote")
+            self.node_endpoints.update(node_endpoints)
 
         # Update Node copy of input endpoints
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
-            node_info.executor.call("init_output_transports", self.input_endpoints)
+            node_info.executor.call("init_output_transports", self.node_endpoints)
 
         # Initialize node instances
         for name, node_info in self.node_infos.items():
@@ -108,6 +111,22 @@ class Coordinator:
             assert node_info.executor is not None
             node_info.executor.call_no_ret("execute")
 
+        # Wait for shutdown request
+        self.coordinator_receiver_transport.wait_for_message()
+        message = self.coordinator_receiver_transport.receive()
+        if not isinstance(message, CoordinatorShutdownRequestMessage):
+            raise ValueError("Expected CoordinatorShutdownMessage")
+        shutdown_timestamp = message.timestamp
+        for name, node_info in self.node_infos.items():
+            self.coordinator_sender_transport = Transport(
+                ClientType.SENDER, Serializer, self.node_endpoints[name]
+            )
+            self.coordinator_sender_transport.send(
+                ShutdownMessage(
+                    timestamp=shutdown_timestamp,
+                )
+            )
+
     def set_value(self, port: T, value: T) -> None:
         """setting values with timestamps is not supported in the coordinator"""
         port = cast(InputPortConnector[T], port)  # type: ignore
@@ -116,12 +135,12 @@ class Coordinator:
             "You can only set values on input ports"
         )
         if getattr(port, "transport", None) is None:
-            if port.name not in self.input_endpoints:
+            if port.name not in self.node_endpoints:
                 raise ValueError(
                     f"Endpoint for port {port.name} not found. "
                     "Make sure execute() has been called first."
                 )
-            endpoint = self.input_endpoints[port.name]
+            endpoint = self.node_endpoints[port.name]
             port.port_type = ClientType.SENDER
             port.transport = Transport(ClientType.SENDER, Serializer, endpoint)
         if port.port_type == ClientType.SENDER:
