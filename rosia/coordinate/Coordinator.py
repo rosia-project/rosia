@@ -21,7 +21,8 @@ class NodeRuntimeInfo:
 
 
 class Coordinator:
-    def __init__(self) -> None:
+    def __init__(self, log_level: str = "WARNING") -> None:
+        self.log_level = log_level
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
         self.logger = logging.getLogger("Coordinator")
@@ -37,6 +38,7 @@ class Coordinator:
             rosia_annotations=rosia_annotations,
             node_name=node_name,
             coordinator_receiver_endpoint=self.coordinator_receiver_transport.endpoint,
+            log_level=self.log_level,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         return cast(T, node_runtime)
@@ -64,7 +66,7 @@ class Coordinator:
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             output_port_safe_to_advance_time.update(
-                node_info.executor.call("get_output_port_safe_to_advance_time")
+                node_info.executor.call("get_output_port_ENT")
             )
 
         def propage_output_sta(
@@ -103,7 +105,7 @@ class Coordinator:
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             node_info.executor.call(
-                "set_output_port_safe_to_advance_time",
+                "set_output_port_ENT",
                 output_port_safe_to_advance_time,
             )
 

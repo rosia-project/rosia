@@ -5,7 +5,7 @@ import rosia
 
 FORMAT = "[%(name)s] %(message)s"
 logging.basicConfig(
-    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+    level="WARNING", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 
 
