@@ -193,7 +193,7 @@ class NodeRuntime:
             )
         self.safe_to_advance_time = min_safe_to_advance_time
 
-    def process_messages(self) -> None:
+    def receive_messages(self) -> None:
         while True:  # Empty the message queue
             message: Optional[Message[Any]] = self.transport.receive()
             if message is None:
@@ -241,12 +241,11 @@ class NodeRuntime:
                     f"Unexpected message type: [{type(message)}] {message}"
                 )
 
-        self.update_safe_to_advance_time()
-
+    def advance_time(self, advance_until: Time = forever) -> None:
         ready_timestamps = [
             timestamp
             for timestamp in self.message_queue.keys()
-            if timestamp < self.safe_to_advance_time
+            if timestamp < self.safe_to_advance_time and timestamp <= advance_until
         ]
         ready_timestamps.sort()
         for i in range(len(ready_timestamps)):
@@ -279,16 +278,19 @@ class NodeRuntime:
                 input_port.set_value(msg)
                 affected_output_ports.extend(input_port.affected_output_ports)
                 trigger_functions.update(input_port.trigger_functions)
+            del self.message_queue[timestamp]
+
             for trigger_function in trigger_functions:
                 trigger_function(self.node_instance)
             for output_port in affected_output_ports:
                 # The output may not be set by the user code, but we need to update the downstream STA
                 output_port._set_value(None, None, self.next_time)
-            del self.message_queue[timestamp]
 
     def event_loop(self) -> None:
         while True:
-            self.process_messages()
+            self.receive_messages()
+            self.update_safe_to_advance_time()
+            self.advance_time()
             # Blocking wait for messages on the single node transport
             self.transport.wait_for_message()
 

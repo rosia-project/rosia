@@ -1,7 +1,6 @@
 from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia.time import Time, ms, s
 from rosia.time.Timer import Timer
-import logging
 
 
 @Node
@@ -32,7 +31,7 @@ class Printer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator(logging.INFO)
+    coor = Coordinator("INFO")
     timer1 = coor.create_node(Timer(interval=1 * ms, offset=0 * s))
     timer2 = coor.create_node(Timer(interval=1 * ms, offset=0 * s))
     int_gen1 = coor.create_node(IntGenerator())
