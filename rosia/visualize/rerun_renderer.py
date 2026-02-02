@@ -7,6 +7,10 @@ NODE_BORDER_COLOR = [0, 0, 0, 255]
 CONNECTION_COLOR = [0, 0, 0, 255]
 TEXT_COLOR = [0, 0, 0, 255]
 
+# Approximate character width in pixels for text width estimation
+CHAR_WIDTH = 6.0
+PORT_LABEL_PADDING = 4
+
 
 def render_diagram(graph: dict) -> None:
     rr.init("rosia_diagram", spawn=True)
@@ -67,6 +71,11 @@ def _render_nodes(graph: dict) -> None:
     )
 
 
+def _estimate_text_width(text: str) -> float:
+    """Estimate text width based on character count."""
+    return len(text) * CHAR_WIDTH + 2 * PORT_LABEL_PADDING
+
+
 def _render_ports(graph: dict) -> None:
     port_label_positions = []
     port_label_texts = []
@@ -82,14 +91,19 @@ def _render_ports(graph: dict) -> None:
             is_input = port.get("_is_input", True)
             short_name = port.get("_short_name", "")
 
-            abs_cy = node_y + port_y + port_h / 2.0
+            abs_cy = node_y + port_y - port_h / 2.0
+            text_width = _estimate_text_width(short_name)
 
             if is_input:
-                port_label_positions.append([node_x + 16, abs_cy])
+                # Position label center at padding + half text width from left edge
+                port_x = node_x + PORT_LABEL_PADDING + text_width / 2.0
+                port_label_positions.append([port_x, abs_cy])
                 port_label_texts.append(short_name)
             else:
                 right_edge = node_x + node_w
-                port_label_positions.append([right_edge - 16, abs_cy])
+                # Position label center at padding + half text width from right edge
+                port_x = right_edge - PORT_LABEL_PADDING - text_width / 2.0
+                port_label_positions.append([port_x, abs_cy])
                 port_label_texts.append(short_name)
 
     if port_label_positions:
@@ -105,32 +119,82 @@ def _render_ports(graph: dict) -> None:
         )
 
 
+def _build_port_position_map(graph: dict) -> dict:
+    """Build a mapping from port ID to its connection point (x, y) at the node edge."""
+    port_positions = {}
+
+    for child in graph.get("children", []):
+        node_x = child["x"]
+        node_y = child["y"]
+        node_w = child["width"]
+
+        for port in child.get("ports", []):
+            port_id = port["id"]
+            port_y = port.get("y", 0)
+            port_h = port.get("height", 0)
+            is_input = port.get("_is_input", True)
+
+            # Port center Y position
+            abs_cy = node_y + port_y + port_h / 2.0
+
+            if is_input:
+                # Connection point at the left edge of the node
+                port_x = node_x
+            else:
+                # Connection point at the right edge of the node
+                port_x = node_x + node_w
+
+            port_positions[port_id] = [port_x, abs_cy]
+
+    return port_positions
+
+
 def _render_edges(graph: dict) -> None:
+    # Build port position map
+    port_positions = _build_port_position_map(graph)
+
     line_strips = []
     arrow_origins = []
     arrow_vectors = []
 
     for edge in graph.get("edges", []):
+        # Get source and target port IDs
+        sources = edge.get("sources", [])
+        targets = edge.get("targets", [])
+
+        if not sources or not targets:
+            continue
+
+        source_port_id = sources[0]
+        target_port_id = targets[0]
+
+        # Get actual port positions
+        source_pos = port_positions.get(source_port_id)
+        target_pos = port_positions.get(target_port_id)
+
+        if source_pos is None or target_pos is None:
+            continue
+
+        # Get bend points from ELK layout
+        bends = []
         for section in edge.get("sections", []):
-            start = section["startPoint"]
-            end = section["endPoint"]
-            bends = section.get("bendPoints", [])
+            bends.extend(section.get("bendPoints", []))
 
-            # Build polyline: start -> bends -> end
-            points = [[start["x"], start["y"]]]
-            for bp in bends:
-                points.append([bp["x"], bp["y"]])
-            points.append([end["x"], end["y"]])
+        # Build polyline: source_port -> bends -> target_port
+        points = [source_pos]
+        for bp in bends:
+            points.append([bp["x"], bp["y"]])
+        points.append(target_pos)
 
-            # Use LineStrips2D for bend segments, Arrows2D for the final segment
-            if len(points) > 2:
-                line_strips.append(points[:-1])
+        # Use LineStrips2D for bend segments, Arrows2D for the final segment
+        if len(points) > 2:
+            line_strips.append(points[:-1])
 
-            # Final segment as an arrow
-            origin = points[-2]
-            tip = points[-1]
-            arrow_origins.append(origin)
-            arrow_vectors.append([tip[0] - origin[0], tip[1] - origin[1]])
+        # Final segment as an arrow
+        origin = points[-2]
+        tip = points[-1]
+        arrow_origins.append(origin)
+        arrow_vectors.append([tip[0] - origin[0], tip[1] - origin[1]])
 
     if line_strips:
         rr.log(
