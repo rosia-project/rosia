@@ -40,3 +40,7 @@ def test_easy():
     printer = coor.create_node(Printer())
     int_gen.output_int >>= printer.input_int
     coor.execute()
+
+
+if __name__ == "__main__":
+    test_easy()

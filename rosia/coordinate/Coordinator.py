@@ -22,8 +22,9 @@ class NodeRuntimeInfo:
 
 
 class Coordinator:
-    def __init__(self, log_level: str = "WARNING") -> None:
+    def __init__(self, log_level: str = "WARNING", visualize: bool = True) -> None:
         self.log_level = log_level
+        self.visualize = visualize
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
         self.logger = logging.getLogger("Coordinator")
@@ -45,6 +46,11 @@ class Coordinator:
         return cast(T, node_runtime)
 
     def execute(self) -> None:
+        if self.visualize:
+            from rosia.visualize import visualize_diagram
+
+            visualize_diagram(self.node_infos)
+
         # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)
