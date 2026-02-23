@@ -22,6 +22,8 @@ from rosia.coordinate.messages.base import (
 )
 from rosia.time import s
 import inspect
+from rosia.time.utils import get_physical_time
+import rerun as rr
 
 T = TypeVar("T")
 
@@ -35,6 +37,9 @@ class NodeRuntime:
         transport_cls: Type[TransportBase] = Transport,
         serializer_cls: Type[SerializerBase] = Serializer,
         log_level: str = "WARNING",
+        trace: bool = False,
+        rerun_name: str = "rosia_rerun",
+        rerun_recording_id: str = "default",
     ) -> None:
         check_rosia_annotations(rosia_annotations)
         node_cls = rosia_annotations["original_cls"]
@@ -49,7 +54,10 @@ class NodeRuntime:
         self.logger = logging.getLogger(f"{self.node_name}")
         self.log_level = log_level
         self.logger.setLevel(self.log_level)
-
+        self.trace = trace
+        self.rerun_name = rerun_name
+        self.rerun_recording_id = rerun_recording_id
+        self.start_logical_time: Time = Time(0)
         self.serializer_cls: Type[SerializerBase] = serializer_cls
         self.transport_cls: Type[TransportBase] = transport_cls
 
@@ -245,6 +253,23 @@ class NodeRuntime:
                     f"Unexpected message type: [{type(message)}] {message}"
                 )
 
+    def log_trace(self) -> None:
+        if self.trace:
+            rr.init(self.rerun_name, spawn=True)
+            rr.set_time("logical_time", duration=self.current_time.to_unix_time())
+            physical_time = (
+                get_physical_time().to_unix_time()
+                - self.start_logical_time.to_unix_time()
+            )
+            rr.set_time("physical_time", duration=physical_time)
+            rr.log(
+                f"/trace/{self.node_name}",
+                rr.TextLog(
+                    text=f"Lag: {physical_time - self.current_time.to_unix_time()}",
+                    level="DEBUG",
+                ),
+            )
+
     def advance_time(self, advance_until: Time = forever) -> None:
         ready_timestamps = [
             timestamp
@@ -286,6 +311,7 @@ class NodeRuntime:
 
             for trigger_function in trigger_functions:
                 try:
+                    self.log_trace()
                     trigger_function(self.node_instance)
                 except Exception as e:
                     print(f"Exception in trigger function {trigger_function}: {e}")
@@ -305,6 +331,7 @@ class NodeRuntime:
             self.transport.wait_for_message()
 
     def execute(self, start_logical_time: Time) -> None:
+        self.start_logical_time = start_logical_time
         self.logger.debug(f"Executing node {self.node_name}")
         try:
             if hasattr(self.node_instance, "start"):

@@ -42,7 +42,7 @@ class Printer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator(diagram=True)
+    coor = Coordinator(diagram=False, trace=True)
     int_gen = coor.create_node(IntGenerator())
     doubler = coor.create_node(Doubler())
     printer = coor.create_node(Printer())

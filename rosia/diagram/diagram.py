@@ -52,14 +52,16 @@ class Graph:
     edges: List[Edge] = field(default_factory=list)
 
 
-def diagram(node_infos: "Dict[str, NodeRuntimeInfo]") -> None:
+def diagram(
+    node_infos: "Dict[str, NodeRuntimeInfo]", rerun_name: str, rerun_recording_id: str
+) -> None:
     """Main entry point: build graph, layout with ELK, and render to rerun."""
     if not node_infos:
         return
 
     graph = build_graph(node_infos)
     layout_graph(graph)
-    render_to_rerun(graph)
+    render_to_rerun(graph, rerun_name, rerun_recording_id)
 
 
 def build_graph(node_infos: "Dict[str, NodeRuntimeInfo]") -> Graph:

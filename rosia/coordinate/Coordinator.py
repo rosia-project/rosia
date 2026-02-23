@@ -12,6 +12,7 @@ from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotat
 from rosia.coordinate.messages.base import CoordinatorShutdownRequestMessage
 import sys
 from rosia.time.utils import get_physical_time
+from datetime import datetime
 
 T = TypeVar("T")
 
@@ -23,9 +24,14 @@ class NodeRuntimeInfo:
 
 
 class Coordinator:
-    def __init__(self, log_level: str = "WARNING", diagram: bool = False) -> None:
+    def __init__(
+        self, log_level: str = "WARNING", diagram: bool = False, trace: bool = False
+    ) -> None:
         self.log_level = log_level
         self.diagram = diagram
+        self.trace = trace
+        self.rerun_name = "rosia_rerun"
+        self.rerun_recording_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
         self.logger = logging.getLogger("Coordinator")
@@ -42,6 +48,9 @@ class Coordinator:
             node_name=node_name,
             coordinator_receiver_endpoint=self.coordinator_receiver_transport.endpoint,
             log_level=self.log_level,
+            trace=self.trace,
+            rerun_name=self.rerun_name,
+            rerun_recording_id=self.rerun_recording_id,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         return cast(T, node_runtime)
@@ -50,7 +59,7 @@ class Coordinator:
         if self.diagram:
             from rosia.diagram import diagram
 
-            diagram(self.node_infos)
+            diagram(self.node_infos, self.rerun_name, self.rerun_recording_id)
 
         # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
