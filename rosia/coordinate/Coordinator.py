@@ -24,11 +24,8 @@ class NodeRuntimeInfo:
 
 
 class Coordinator:
-    def __init__(
-        self, log_level: str = "WARNING", diagram: bool = False, trace: bool = False
-    ) -> None:
+    def __init__(self, log_level: str = "WARNING", trace: bool = False) -> None:
         self.log_level = log_level
-        self.diagram = diagram
         self.trace = trace
         self.rerun_name = "rosia_rerun"
         self.rerun_recording_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -55,12 +52,12 @@ class Coordinator:
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         return cast(T, node_runtime)
 
+    def diagram(self) -> None:
+        from rosia.diagram import diagram
+
+        diagram(self.node_infos, self.rerun_name, self.rerun_recording_id)
+
     def execute(self) -> None:
-        if self.diagram:
-            from rosia.diagram import diagram
-
-            diagram(self.node_infos, self.rerun_name, self.rerun_recording_id)
-
         # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)

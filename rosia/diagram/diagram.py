@@ -13,7 +13,9 @@ from rosia.diagram.constants import (
     MIN_NODE_SIZE,
     ICON_NODES,
 )
-from rosia.diagram.rerun_renderer import render_to_rerun
+from rosia.diagram.renderer import render_graph
+from rosia.rerun.initialize import initialize
+from rosia.rerun.diagram import render_diagram
 
 if TYPE_CHECKING:
     from rosia.coordinate.Coordinator import NodeRuntimeInfo
@@ -61,7 +63,8 @@ def diagram(
 
     graph = build_graph(node_infos)
     layout_graph(graph)
-    render_to_rerun(graph, rerun_name, rerun_recording_id)
+    initialize(rerun_name, rerun_recording_id)
+    render_diagram(render_graph(graph))
 
 
 def build_graph(node_infos: "Dict[str, NodeRuntimeInfo]") -> Graph:
