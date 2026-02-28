@@ -39,7 +39,7 @@ class Printer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator("INFO", trace=True)
+    coor = Coordinator()
     timer1 = coor.create_node(Timer(interval=1 * s, offset=0 * s))
     timer2 = coor.create_node(Timer(interval=1 * s, offset=0 * s))
     int_gen1 = coor.create_node(IntGenerator())

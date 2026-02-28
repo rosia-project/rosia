@@ -40,7 +40,7 @@ class Printer:
 
 @pytest.mark.timeout(30)
 def test_parallel_timed():
-    coor = Coordinator("INFO")
+    coor = Coordinator()
     timer1 = coor.create_node(Timer(interval=1 * ms, offset=0 * s))
     timer2 = coor.create_node(Timer(interval=1 * ms, offset=0 * s))
     int_gen1 = coor.create_node(IntGenerator())

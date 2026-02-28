@@ -2,17 +2,19 @@ from typing import Dict, List, Optional, TypeVar, cast
 from rosia.comms.Types import ClientType
 from rosia.comms.serializers import Serializer
 from rosia.comms.transports import Transport
+from rosia.config import ExecutionConfig
 from rosia.coordinate.Node import NodeRuntime
 from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
 from rosia.coordinate.messages.base import Message, ShutdownMessage
 from rosia.execute import ExecutorController
 from dataclasses import dataclass
-import logging
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
 from rosia.coordinate.messages.base import CoordinatorShutdownRequestMessage
 import sys
 from rosia.time.utils import get_physical_time
-from datetime import datetime
+from rosia.diagram import diagram
+from rosia.rerun.initialize import RerunConnector
+
 
 T = TypeVar("T")
 
@@ -24,14 +26,9 @@ class NodeRuntimeInfo:
 
 
 class Coordinator:
-    def __init__(self, log_level: str = "WARNING", trace: bool = False) -> None:
-        self.log_level = log_level
-        self.trace = trace
-        self.rerun_name = "rosia_rerun"
-        self.rerun_recording_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def __init__(self) -> None:
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
-        self.logger = logging.getLogger("Coordinator")
         self.coordinator_receiver_transport = Transport(ClientType.RECEIVER, Serializer)
 
     def create_node(self, node_cls: T) -> T:
@@ -44,25 +41,21 @@ class Coordinator:
             rosia_annotations=rosia_annotations,
             node_name=node_name,
             coordinator_receiver_endpoint=self.coordinator_receiver_transport.endpoint,
-            log_level=self.log_level,
-            trace=self.trace,
-            rerun_name=self.rerun_name,
-            rerun_recording_id=self.rerun_recording_id,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         return cast(T, node_runtime)
 
-    def diagram(self) -> None:
-        from rosia.diagram import diagram
+    def diagram(self, execution_config: ExecutionConfig = ExecutionConfig()) -> None:
+        rerun_connector = RerunConnector(execution_config)
+        diagram(self.node_infos, rerun_connector)
 
-        diagram(self.node_infos, self.rerun_name, self.rerun_recording_id)
-
-    def execute(self) -> None:
+    def execute(self, execution_config: ExecutionConfig = ExecutionConfig()) -> None:
+        self.execution_config = execution_config
         # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)
             node_info.executor = executor
-            node_endpoints = node_info.executor.call("init_remote")
+            node_endpoints = node_info.executor.call("init_remote", execution_config)
             self.node_endpoints.update(node_endpoints)
 
         # Update Node copy of input endpoints

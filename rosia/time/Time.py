@@ -14,6 +14,10 @@ class Time:
     def to_unix_time(self) -> float:
         return self.value / (TIME_DIVISOR * 1e9)
 
+    @staticmethod
+    def from_unix_time(unix_time: float) -> "Time":
+        return Time(int(unix_time * TIME_DIVISOR * 1e9))
+
     def __add__(self, other) -> "Time":
         assert isinstance(other, Time), "Cannot add Time to non-Time"
         if other == never or self == never:

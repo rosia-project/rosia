@@ -41,7 +41,7 @@ class Printer:
 
 @pytest.mark.timeout(30)
 def test_parallel_timed_interleave():
-    coor = Coordinator("INFO")
+    coor = Coordinator()
     timer1 = coor.create_node(Timer(interval=10 * ms, offset=0 * ms))
     timer2 = coor.create_node(Timer(interval=10 * ms, offset=1 * ms))
     int_gen1 = coor.create_node(IntGenerator())

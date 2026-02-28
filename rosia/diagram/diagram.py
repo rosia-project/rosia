@@ -14,8 +14,7 @@ from rosia.diagram.constants import (
     ICON_NODES,
 )
 from rosia.diagram.renderer import render_graph
-from rosia.rerun.initialize import initialize
-from rosia.rerun.diagram import render_diagram
+from rosia.rerun.initialize import RerunConnector
 
 if TYPE_CHECKING:
     from rosia.coordinate.Coordinator import NodeRuntimeInfo
@@ -55,7 +54,7 @@ class Graph:
 
 
 def diagram(
-    node_infos: "Dict[str, NodeRuntimeInfo]", rerun_name: str, rerun_recording_id: str
+    node_infos: "Dict[str, NodeRuntimeInfo]", rerun_connector: RerunConnector
 ) -> None:
     """Main entry point: build graph, layout with ELK, and render to rerun."""
     if not node_infos:
@@ -63,8 +62,8 @@ def diagram(
 
     graph = build_graph(node_infos)
     layout_graph(graph)
-    initialize(rerun_name, rerun_recording_id)
-    render_diagram(render_graph(graph))
+    rerun_connector.send_blueprint()
+    rerun_connector.render_diagram(render_graph(graph))
 
 
 def build_graph(node_infos: "Dict[str, NodeRuntimeInfo]") -> Graph:

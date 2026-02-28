@@ -13,7 +13,6 @@ from rosia.frontend.Annotators import RosiaAnnotations, check_rosia_annotations
 from typing import Any, Dict, Optional, Type, TypeVar, List
 import traceback
 import sys
-import logging
 from rosia.time import Time, forever
 import rosia
 from rosia.coordinate.messages.base import (
@@ -23,7 +22,8 @@ from rosia.coordinate.messages.base import (
 from rosia.time import s
 import inspect
 from rosia.time.utils import get_physical_time
-import rerun as rr
+from rosia.config import ExecutionConfig
+from rosia.rerun.initialize import RerunConnector
 
 T = TypeVar("T")
 
@@ -36,10 +36,6 @@ class NodeRuntime:
         coordinator_receiver_endpoint: str,
         transport_cls: Type[TransportBase] = Transport,
         serializer_cls: Type[SerializerBase] = Serializer,
-        log_level: str = "WARNING",
-        trace: bool = False,
-        rerun_name: str = "rosia_rerun",
-        rerun_recording_id: str = "default",
     ) -> None:
         check_rosia_annotations(rosia_annotations)
         node_cls = rosia_annotations["original_cls"]
@@ -51,12 +47,6 @@ class NodeRuntime:
         self.node_original_init = rosia_annotations["original_init"]
         self.node_init_args = rosia_annotations["init_args"]
         self.node_name = node_name
-        self.logger = logging.getLogger(f"{self.node_name}")
-        self.log_level = log_level
-        self.logger.setLevel(self.log_level)
-        self.trace = trace
-        self.rerun_name = rerun_name
-        self.rerun_recording_id = rerun_recording_id
         self.start_logical_time: Time = Time(0)
         self.serializer_cls: Type[SerializerBase] = serializer_cls
         self.transport_cls: Type[TransportBase] = transport_cls
@@ -115,17 +105,12 @@ class NodeRuntime:
             self.node_cls, "__init__", empty_function
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
-        self.logger.debug("NodeRuntime instance created in main process")
 
-    def init_remote(self) -> Dict[str, str]:
-        self.logger.setLevel(
-            self.log_level
-        )  # The recreated logger in the remote process will lose the log level set in the main process, so we set it again here
+    def init_remote(self, execution_config: ExecutionConfig) -> Dict[str, str]:
+        self.execution_config = execution_config
         self.transport = self.transport_cls(ClientType.RECEIVER, self.serializer_cls)
-        rosia.log.set_logger(logging.getLogger(f"{self.node_name}"))  # type: ignore
-        for name, input_port in self.input_port_connectors.items():
+        for _, input_port in self.input_port_connectors.items():
             input_port.port_type = ClientType.RECEIVER
-        self.logger.debug("NodeRuntime input ports initialized in remote process")
         return {self.node_name: self.transport.endpoint}
 
     def init_output_transports(self, node_endpoints: Dict[str, str]) -> None:
@@ -149,7 +134,6 @@ class NodeRuntime:
             for downstream_port in ports_list:
                 downstream_port.port_type = ClientType.SENDER
                 downstream_port.transport = sender_transport
-        self.logger.debug("NodeRuntime output ports initialized in remote process")
 
     def init_node_instance(self) -> None:
         setattr(self.node_instance, "__init__", self.node_original_init)
@@ -164,7 +148,6 @@ class NodeRuntime:
         self.node_instance.__init__(
             self.node_instance, *self.node_init_args.args, **self.node_init_args.kwargs
         )
-        self.logger.debug("NodeRuntime node instance initialized in remote process")
 
     def get_output_port_ENT(self) -> Dict[str, Time]:
         output_port_safe_to_advance_time = {}
@@ -172,9 +155,6 @@ class NodeRuntime:
             output_port_safe_to_advance_time[output_port.name] = (
                 output_port.safe_to_advance_time
             )
-        self.logger.debug(
-            f"Sending output port ENT to coordinator: {output_port_safe_to_advance_time}"
-        )
         return output_port_safe_to_advance_time
 
     def set_output_port_ENT(self, output_port_to_sta: Dict[str, Time]) -> None:
@@ -183,23 +163,12 @@ class NodeRuntime:
                 if output_port.name in output_port_to_sta.keys():
                     output_port.set_next_timestamp(output_port_to_sta[output_port.name])
             input_port.update_safe_to_advance_time()
-        self.logger.debug(
-            f"Received and set output port ENT from coordinator: {output_port_to_sta}"
-        )
 
     def update_safe_to_advance_time(self) -> None:
-        old_safe_to_advance_time = self.safe_to_advance_time
         min_safe_to_advance_time = forever
         for input_port in self.input_port_connectors.values():
             min_safe_to_advance_time = min(
                 min_safe_to_advance_time, input_port.safe_to_advance_time
-            )
-        self.logger.debug(
-            f"Advancing time: {old_safe_to_advance_time} -> {min_safe_to_advance_time}"
-        )
-        if old_safe_to_advance_time > min_safe_to_advance_time:
-            self.logger.warning(
-                f"Safe to advance time decreased from {old_safe_to_advance_time} to {min_safe_to_advance_time}"
             )
         self.safe_to_advance_time = min_safe_to_advance_time
 
@@ -208,8 +177,6 @@ class NodeRuntime:
             message: Optional[Message[Any]] = self.transport.receive()
             if message is None:
                 break
-
-            self.logger.debug(f"Received message: {message}")
 
             if isinstance(message, ShutdownMessage):
                 shutdown_timestamp = message.timestamp
@@ -254,20 +221,19 @@ class NodeRuntime:
                 )
 
     def log_trace(self) -> None:
-        if self.trace:
-            rr.init(self.rerun_name, spawn=True)
-            rr.set_time("logical_time", duration=self.current_time.to_unix_time())
-            physical_time = (
+        if self.execution_config.trace:
+            if not hasattr(self, "_rerun_connector"):
+                self._rerun_connector = RerunConnector(self.execution_config)
+            physical_time_val = (
                 get_physical_time().to_unix_time()
                 - self.start_logical_time.to_unix_time()
             )
-            rr.set_time("physical_time", duration=physical_time)
-            rr.log(
-                f"/trace/{self.node_name}",
-                rr.TextLog(
-                    text=f"Lag: {physical_time - self.current_time.to_unix_time()}",
-                    level="DEBUG",
-                ),
+            lag = physical_time_val - self.current_time.to_unix_time()
+            self._rerun_connector.trace(
+                self.node_name,
+                self.current_time,
+                Time.from_unix_time(physical_time_val),
+                f"Lag: {lag}",
             )
 
     def advance_time(self, advance_until: Time = forever) -> None:
@@ -332,7 +298,6 @@ class NodeRuntime:
 
     def execute(self, start_logical_time: Time) -> None:
         self.start_logical_time = start_logical_time
-        self.logger.debug(f"Executing node {self.node_name}")
         try:
             if hasattr(self.node_instance, "start"):
                 if not inspect.signature(self.node_instance.start).parameters:
@@ -356,9 +321,6 @@ class NodeRuntime:
             sys.exit(1)
 
     def request_shutdown(self, delay: Time = Time(0), status_code: int = 0) -> None:
-        self.logger.debug(
-            f"Requesting shutdown of node {self.node_name} with delay {delay}"
-        )
         self.coordinator_receiver_transport.send(
             CoordinatorShutdownRequestMessage(timestamp=delay, status_code=status_code)
         )
