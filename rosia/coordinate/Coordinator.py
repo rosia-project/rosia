@@ -14,6 +14,7 @@ import sys
 from rosia.time.utils import get_physical_time
 from rosia.diagram import diagram
 from rosia.config import RerunConfig
+from rosia.logging import Logger
 import rosia
 
 T = TypeVar("T")
@@ -30,6 +31,8 @@ class Coordinator:
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
         self.coordinator_receiver_transport = Transport(ClientType.RECEIVER, Serializer)
+        self.logger = Logger(self.__class__.__name__)
+        self.logger.debug("Coordinator created")
 
     def create_node(self, node_cls: T) -> T:
         rosia_annotations = get_rosia_annotations(node_cls)
@@ -43,15 +46,20 @@ class Coordinator:
             coordinator_receiver_endpoint=self.coordinator_receiver_transport.endpoint,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
+        self.logger.debug(f"Create node: {node_name}")
         return cast(T, node_runtime)
 
     def diagram(self, rerun_config: RerunConfig = RerunConfig()) -> None:
+        self.logger.debug("Render diagram")
         rosia.rerun_manager.set_rerun_config(rerun_config)
         rosia.rerun_manager.init()
         diagram(self.node_infos)
 
     def execute(self, execution_config: ExecutionConfig = ExecutionConfig()) -> None:
         self.execution_config = execution_config
+        self.logger.set_level(execution_config.log_level)
+        self.logger.debug(f"Start execution with config: {execution_config}")
+        self.logger.debug("Setting up remote nodes and initializing input endpoints...")
         # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)
@@ -59,16 +67,19 @@ class Coordinator:
             node_endpoints = node_info.executor.call("init_remote", execution_config)
             self.node_endpoints.update(node_endpoints)
 
+        self.logger.debug("Updating Node copy of input endpoints...")
         # Update Node copy of input endpoints
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             node_info.executor.call("init_output_transports", self.node_endpoints)
 
+        self.logger.debug("Initializing node instances...")
         # Initialize node instances
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             node_info.executor.call("init_node_instance")
 
+        self.logger.debug("Collecting output port safe to advance times...")
         # Collect output port safe to advance times
         output_port_safe_to_advance_time = {}
         for name, node_info in self.node_infos.items():
@@ -77,7 +88,9 @@ class Coordinator:
                 node_info.executor.call("get_output_port_ENT")
             )
 
-        def propage_output_sta(
+        self.logger.debug("Propagating output port ENTs...")
+
+        def propage_output_ENT(
             port: OutputPortConnector, propagated: List[str]
         ) -> None:
             if port.name in propagated:
@@ -103,13 +116,14 @@ class Coordinator:
                             downstream_port.safe_to_advance_time,
                         )
                     )
-                    propage_output_sta(affected_output_port, propagated)
+                    propage_output_ENT(affected_output_port, propagated)
 
         for name, node_info in self.node_infos.items():
             for output_port in node_info.node.output_port_connectors.values():
-                propage_output_sta(output_port, propagated=[])
+                propage_output_ENT(output_port, propagated=[])
 
-        # Update ports of safe to advance time
+        self.logger.debug("Updating ports ENTs...")
+        # Update ports ENTs
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             node_info.executor.call(
@@ -117,6 +131,7 @@ class Coordinator:
                 output_port_safe_to_advance_time,
             )
 
+        self.logger.debug("Executing nodes...")
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             current_physical_time = get_physical_time()
@@ -124,14 +139,16 @@ class Coordinator:
                 "execute", start_logical_time=current_physical_time
             )
 
-        # Wait for shutdown request
+        self.logger.debug("Waiting for shutdown request...")
         self.coordinator_receiver_transport.wait_for_message()
         message = self.coordinator_receiver_transport.receive()
+        self.logger.debug(f"Received shutdown request: {message}")
         if not isinstance(message, CoordinatorShutdownRequestMessage):
             raise ValueError("Expected CoordinatorShutdownMessage")
         shutdown_timestamp = message.timestamp
         status_code = message.status_code
         for name, node_info in self.node_infos.items():
+            self.logger.debug(f"Sending shutdown request to node: {name}")
             self.coordinator_sender_transport = Transport(
                 ClientType.SENDER, Serializer, self.node_endpoints[name]
             )
@@ -144,6 +161,9 @@ class Coordinator:
             sys.exit(status_code)
 
     def set_value(self, port: T, value: T) -> None:
+        """
+        Deprecated
+        """
         """setting values with timestamps is not supported in the coordinator"""
         port = cast(InputPortConnector[T], port)  # type: ignore
 

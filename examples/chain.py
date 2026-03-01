@@ -3,6 +3,7 @@ import time
 from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia import request_shutdown
 from rosia.time import s
+from rosia import log
 
 
 @Node
@@ -38,7 +39,7 @@ class Printer:
 
     @reaction([input_int])
     def print_message(self):
-        pass
+        log.info(f"Received message: {self.input_int}")
 
 
 if __name__ == "__main__":

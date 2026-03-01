@@ -22,6 +22,7 @@ dependencies = [
     "pyzmq",
     "cloudpickle",
     "pyelk",
+    "rich",
 ]
 
 [dependency-groups]

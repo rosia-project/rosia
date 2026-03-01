@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 import rerun as rr
+from rosia.logging import Logger
 
 
 class RerunConfig(BaseModel):
@@ -15,3 +16,4 @@ class RerunConfig(BaseModel):
 
 class ExecutionConfig(BaseModel):
     trace: bool = False
+    log_level: int = Logger.INFO

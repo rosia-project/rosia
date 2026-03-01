@@ -23,6 +23,7 @@ from rosia.time import s
 import inspect
 from rosia.time.utils import get_physical_time
 from rosia.config import ExecutionConfig
+from rosia.logging import Logger
 
 T = TypeVar("T")
 
@@ -104,9 +105,12 @@ class NodeRuntime:
             self.node_cls, "__init__", empty_function
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
+        self.logger = Logger(self.node_name)
+        rosia.logger.set_logger(self.logger)
 
     def init_remote(self, execution_config: ExecutionConfig) -> Dict[str, str]:
         self.execution_config = execution_config
+        self.logger.set_level(execution_config.log_level)
         self.transport = self.transport_cls(ClientType.RECEIVER, self.serializer_cls)
         for _, input_port in self.input_port_connectors.items():
             input_port.port_type = ClientType.RECEIVER
