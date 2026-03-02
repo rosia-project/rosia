@@ -153,6 +153,8 @@ class Coordinator:
             raise ValueError("Expected CoordinatorShutdownMessage")
         shutdown_timestamp = message.timestamp
         status_code = message.status_code
+        if shutdown_timestamp is None:
+            raise ValueError("Shutdown timestamp is None")
         self.logger.set_logical_time(shutdown_timestamp)
         self.logger.set_physical_time(get_physical_time() - start_physical_time)
         for name, node_info in self.node_infos.items():
