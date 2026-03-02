@@ -18,6 +18,9 @@ def test_logger_output_in_subprocess():
         cwd=_PROJECT_ROOT,
     )
     assert result.returncode == 0
+    assert "[Source_1] sending 0" in result.stderr
+    assert "[Source_1] sending 1" in result.stderr
+    assert "[Source_1] sending 2" in result.stderr
     assert "[Sink_2] got 0" in result.stderr
     assert "[Sink_2] got 1" in result.stderr
     assert "[Sink_2] got 2" in result.stderr
@@ -33,4 +36,5 @@ def test_logger_node_name_prefix():
         cwd=_PROJECT_ROOT,
     )
     assert result.returncode == 0
+    assert "[Source_1]" in result.stderr
     assert "[Sink_2]" in result.stderr

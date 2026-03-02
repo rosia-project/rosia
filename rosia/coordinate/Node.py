@@ -108,12 +108,12 @@ class NodeRuntime:
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
         self.logger = Logger(self.node_name)
-        rosia.logger.set_target(self.logger)  # type: ignore # overwrite the global logger
 
     def init_remote(
         self, execution_config: ExecutionConfig, rerun_config: RerunConfig
     ) -> Dict[str, str]:
         self.execution_config = execution_config
+        rosia.logger.set_target(self.logger)  # type: ignore # overwrite the global logger
         self.logger.set_level(execution_config.log_level)
         self.logger.set_trace(trace=execution_config.trace, rerun_config=rerun_config)
         self.transport = self.transport_cls(ClientType.RECEIVER, self.serializer_cls)
@@ -278,9 +278,9 @@ class NodeRuntime:
                         if trigger_function in input_port.trigger_functions:
                             if hasattr(input_port.value, "to_rerun"):
                                 self.logger.rerun(
-                                    input_port.value.to_rerun(),
+                                    input_port.value.to_rerun(),  # type: ignore
                                     rerun_subpath=f"{input_port.name}",
-                                )  # type: ignore
+                                )
                             else:
                                 self.logger.rerun(
                                     rr.TextLog(

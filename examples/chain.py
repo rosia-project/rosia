@@ -30,6 +30,7 @@ class Doubler:
 
     @reaction([input_port])
     def process_input(self):
+        log.info(f"Doubling value: {self.input_port}")
         input_value = self.input_port
         output_value = input_value * 2
         self.output_port(output_value)
@@ -41,8 +42,7 @@ class Printer:
 
     @reaction([input_int])
     def print_message(self):
-        log.info(f"Received message: {self.input_int}")
-        print(f"Received message: {self.input_int}")
+        log.info(f"Printing value: {self.input_int}")
 
 
 if __name__ == "__main__":

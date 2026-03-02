@@ -12,7 +12,7 @@ from rosia.utils import ObjectProxy as ObjectProxy
 from typing import TYPE_CHECKING
 
 rerun_manager = RerunManager()
-log = logger = ObjectProxy(Logger())
+log = logger = ObjectProxy(Logger(), module="rosia", attr="logger")
 
 if TYPE_CHECKING:
     log = logger = Logger()

@@ -13,6 +13,7 @@ class Source:
 
     @reaction([input_port])
     def generate(self):
+        log.warning(f"sending {self.count}")
         self.output(self.count)
         self.count += 1
         if self.count >= 3:
