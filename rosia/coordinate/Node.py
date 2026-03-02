@@ -24,6 +24,7 @@ import inspect
 from rosia.time.utils import get_physical_time
 from rosia.config import ExecutionConfig
 from rosia.logging import Logger
+from rosia.config import RerunConfig
 
 T = TypeVar("T")
 
@@ -108,9 +109,12 @@ class NodeRuntime:
         self.logger = Logger(self.node_name)
         rosia.logger.set_logger(self.logger)
 
-    def init_remote(self, execution_config: ExecutionConfig) -> Dict[str, str]:
+    def init_remote(
+        self, execution_config: ExecutionConfig, rerun_config: RerunConfig
+    ) -> Dict[str, str]:
         self.execution_config = execution_config
         self.logger.set_level(execution_config.log_level)
+        self.logger.set_trace(trace=execution_config.trace, rerun_config=rerun_config)
         self.transport = self.transport_cls(ClientType.RECEIVER, self.serializer_cls)
         for _, input_port in self.input_port_connectors.items():
             input_port.port_type = ClientType.RECEIVER
@@ -223,20 +227,6 @@ class NodeRuntime:
                     f"Unexpected message type: [{type(message)}] {message}"
                 )
 
-    def log_trace(self) -> None:
-        if self.execution_config.trace:
-            physical_time_val = (
-                get_physical_time().to_unix_time()
-                - self.start_logical_time.to_unix_time()
-            )
-            lag = physical_time_val - self.current_time.to_unix_time()
-            rosia.rerun_manager.trace(
-                self.node_name,
-                self.current_time,
-                Time.from_unix_time(physical_time_val),
-                f"Lag: {lag}",
-            )
-
     def advance_time(self, advance_until: Time = forever) -> None:
         ready_timestamps = [
             timestamp
@@ -278,7 +268,11 @@ class NodeRuntime:
 
             for trigger_function in trigger_functions:
                 try:
-                    self.log_trace()
+                    self.logger.set_logical_time(self.current_time)
+                    self.logger.set_physical_time(
+                        get_physical_time() - self.start_logical_time
+                    )
+                    self.logger.debug(f"{trigger_function.__name__}()")
                     trigger_function(self.node_instance)
                 except Exception as e:
                     print(f"Exception in trigger function {trigger_function}: {e}")
@@ -323,5 +317,7 @@ class NodeRuntime:
 
     def request_shutdown(self, delay: Time = Time(0), status_code: int = 0) -> None:
         self.coordinator_receiver_transport.send(
-            CoordinatorShutdownRequestMessage(timestamp=delay, status_code=status_code)
+            CoordinatorShutdownRequestMessage(
+                timestamp=self.current_time + delay, status_code=status_code
+            )
         )

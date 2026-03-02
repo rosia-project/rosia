@@ -1,24 +1,26 @@
-import time
-
 from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia import request_shutdown
 from rosia.time import s
 from rosia import log
+from rosia.config import ExecutionConfig
+
+from rosia.time import Timer, Time
 
 
 @Node
 class IntGenerator:
+    input_port = InputPort[Time]()
     output = OutputPort[int]()
 
     def __init__(self):
         self.count = 0
 
-    def start(self):
-        for _ in range(3):
-            self.output(self.count)
-            self.count += 1
-            time.sleep(0.01)
-        request_shutdown(0 * s)
+    @reaction([input_port])
+    def generate(self):
+        self.count += 1
+        self.output(self.count)
+        if self.count >= 5:
+            request_shutdown(0 * s)
 
 
 @Node
@@ -40,14 +42,17 @@ class Printer:
     @reaction([input_int])
     def print_message(self):
         log.info(f"Received message: {self.input_int}")
+        print(f"Received message: {self.input_int}")
 
 
 if __name__ == "__main__":
     coor = Coordinator()
+    timer = coor.create_node(Timer(interval=1 * s, offset=0 * s))
     int_gen = coor.create_node(IntGenerator())
     doubler = coor.create_node(Doubler())
     printer = coor.create_node(Printer())
+    timer.output_timer >>= int_gen.input_port
     int_gen.output >>= doubler.input_port
     doubler.output_port >>= printer.input_int
     coor.diagram()
-    coor.execute()
+    coor.execute(execution_config=ExecutionConfig(trace=True))

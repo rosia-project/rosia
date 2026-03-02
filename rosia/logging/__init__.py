@@ -2,6 +2,13 @@ import logging
 
 from rich.console import Console
 
+from rosia.time import Time
+from rosia.rerun import RerunManager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rosia.config import RerunConfig
+
 _LEVEL_STYLES = {
     logging.DEBUG: "dim",
     logging.INFO: "bold blue",
@@ -21,29 +28,42 @@ class Logger:
     def __init__(self, name: str = "rosia") -> None:
         self._name = name
         self._level = logging.INFO
-        self._console = Console(stderr=True)
+        self._console: Console | None = None
+        self._trace = False
+        self.logical_time = Time(0)
+        self.physical_time = Time(0)
 
-    def __getstate__(self) -> dict:
-        return {"_name": self._name, "_level": self._level}
+    @property
+    def console(self) -> Console:
+        if self._console is None:
+            self._console = Console(stderr=True)
+        return self._console
 
-    def __setstate__(self, state: dict) -> None:
-        self._name = state["_name"]
-        self._level = state["_level"]
-        self._console = Console(stderr=True)
+    def set_logical_time(self, logical_time: Time) -> None:
+        self.logical_time = logical_time
+
+    def set_physical_time(self, physical_time: Time) -> None:
+        self.physical_time = physical_time
+
+    def set_trace(self, trace: bool, rerun_config: "RerunConfig") -> None:
+        self._trace = trace
+        if self._trace:
+            self._rerun_manager = RerunManager()
+            self._rerun_manager.init(rerun_config)
 
     def _log(self, level: int, msg: str) -> None:
         if self._level <= level:
             style = _LEVEL_STYLES.get(level, "")
-            self._console.print(
+            self.console.print(
                 f"[{style}]\\[{self._name}] {msg}[/{style}]", highlight=False
+            )
+        if self._trace:
+            self._rerun_manager.trace(
+                self._name, self.logical_time, self.physical_time, msg
             )
 
     def set_level(self, level: int) -> None:
         self._level = level
-
-    def set_logger(self, logger: "Logger") -> None:
-        self._name = logger._name
-        self._level = logger._level
 
     def debug(self, msg: str) -> None:
         self._log(logging.DEBUG, msg)
@@ -59,3 +79,46 @@ class Logger:
 
     def critical(self, msg: str) -> None:
         self._log(logging.CRITICAL, msg)
+
+
+class LoggerProxy:
+    """Proxy that delegates to an underlying Logger.
+
+    Used as the top-level ``rosia.log`` / ``rosia.logger`` so that user code
+    always goes through a stable reference.  When a node is sent to a
+    subprocess, ``set_logger`` swaps the underlying Logger without changing
+    the module-level binding.
+    """
+
+    def __init__(self, logger: Logger) -> None:
+        self._logger = logger
+
+    def set_logger(self, logger: Logger) -> None:
+        self._logger = logger
+
+    def set_level(self, level: int) -> None:
+        self._logger.set_level(level)
+
+    def set_logical_time(self, logical_time: Time) -> None:
+        self._logger.set_logical_time(logical_time)
+
+    def set_physical_time(self, physical_time: Time) -> None:
+        self._logger.set_physical_time(physical_time)
+
+    def set_trace(self, trace: bool, rerun_config: "RerunConfig") -> None:
+        self._logger.set_trace(trace, rerun_config)
+
+    def debug(self, msg: str) -> None:
+        self._logger.debug(msg)
+
+    def info(self, msg: str) -> None:
+        self._logger.info(msg)
+
+    def warning(self, msg: str) -> None:
+        self._logger.warning(msg)
+
+    def error(self, msg: str) -> None:
+        self._logger.error(msg)
+
+    def critical(self, msg: str) -> None:
+        self._logger.critical(msg)

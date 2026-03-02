@@ -7,10 +7,10 @@ from rosia.frontend import (
 from rosia.coordinate import Coordinator as Coordinator
 from rosia.coordinate import request_shutdown as request_shutdown
 from rosia.rerun import RerunManager as RerunManager
-from rosia.logging import Logger as Logger
+from rosia.logging import Logger as Logger, LoggerProxy as LoggerProxy
 
 rerun_manager = RerunManager()
-log = logger = Logger()
+log = logger = LoggerProxy(Logger())
 
 
 # Monkey patches

@@ -1,7 +1,6 @@
-import pickle
 import logging
 
-from rosia.logging import Logger
+from rosia.logging import Logger, LoggerProxy
 
 
 def test_default_name():
@@ -63,46 +62,6 @@ def test_output_includes_name(capsys):
     assert "[Printer_2] hello" in captured.err
 
 
-def test_pickle_roundtrip(capsys):
-    logger = Logger("PickleNode")
-    logger.set_level(Logger.WARNING)
-
-    restored = pickle.loads(pickle.dumps(logger))
-
-    assert restored._name == "PickleNode"
-    assert restored._level == logging.WARNING
-
-    restored.info("should be hidden")
-    restored.warning("should appear")
-
-    captured = capsys.readouterr()
-    assert "should be hidden" not in captured.err
-    assert "should appear" in captured.err
-
-
-def test_set_logger_copies_name_and_level():
-    src = Logger("Source")
-    src.set_level(Logger.ERROR)
-
-    dst = Logger()
-    dst.set_logger(src)
-
-    assert dst._name == "Source"
-    assert dst._level == logging.ERROR
-
-
-def test_set_logger_output(capsys):
-    src = Logger("Source")
-    src.set_level(Logger.DEBUG)
-
-    dst = Logger()
-    dst.set_logger(src)
-    dst.debug("from dst")
-
-    captured = capsys.readouterr()
-    assert "[Source] from dst" in captured.err
-
-
 def test_all_log_methods(capsys):
     logger = Logger("all")
     logger.set_level(Logger.DEBUG)
@@ -116,3 +75,47 @@ def test_all_log_methods(capsys):
     captured = capsys.readouterr()
     for letter in ["D", "I", "W", "E", "C"]:
         assert f"[all] {letter}" in captured.err
+
+
+# --- LoggerProxy tests ---
+
+
+def test_proxy_delegates_to_logger(capsys):
+    proxy = LoggerProxy(Logger("node"))
+    proxy.set_level(Logger.DEBUG)
+    proxy.info("hello")
+
+    captured = capsys.readouterr()
+    assert "[node] hello" in captured.err
+
+
+def test_proxy_set_logger_swaps_underlying(capsys):
+    original = Logger("old")
+    proxy = LoggerProxy(original)
+
+    new = Logger("new")
+    new.set_level(Logger.DEBUG)
+    proxy.set_logger(new)
+    proxy.debug("after swap")
+
+    captured = capsys.readouterr()
+    assert "[new] after swap" in captured.err
+
+
+def test_proxy_set_level_forwards():
+    inner = Logger()
+    proxy = LoggerProxy(inner)
+    proxy.set_level(Logger.ERROR)
+    assert inner._level == logging.ERROR
+
+
+def test_proxy_level_filtering(capsys):
+    proxy = LoggerProxy(Logger("p"))
+    proxy.set_level(Logger.WARNING)
+
+    proxy.info("hidden")
+    proxy.warning("visible")
+
+    captured = capsys.readouterr()
+    assert "hidden" not in captured.err
+    assert "visible" in captured.err

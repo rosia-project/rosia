@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 from rosia.time import Time
 
@@ -9,13 +9,13 @@ T = TypeVar("T")
 
 @dataclass
 class MessageBase(Generic[T]):
-    timestamp: Optional[Time]
+    timestamp: Time
     pass
 
 
 @dataclass
 class Message(MessageBase[T]):
-    next_timestamp: Optional[Time]
+    next_timestamp: Time
     data: T
     from_port: str
     to_port: str
@@ -31,4 +31,5 @@ class CoordinatorShutdownRequestMessage(MessageBase):
 
 @dataclass
 class ShutdownMessage(MessageBase):
+    timestamp: Time
     pass

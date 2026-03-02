@@ -6,17 +6,18 @@ import numpy as np
 from PIL import Image
 
 from rosia.time import Time
-from rosia.config import RerunConfig
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rosia.config import RerunConfig
 
 
 class RerunManager:
     def __init__(self):
         pass
 
-    def set_rerun_config(self, rerun_config: RerunConfig):
+    def init(self, rerun_config: "RerunConfig"):
         self.rerun_config = rerun_config
-
-    def init(self):
         rr.init(
             self.rerun_config.name,
             recording_id=self.rerun_config.recording_id,

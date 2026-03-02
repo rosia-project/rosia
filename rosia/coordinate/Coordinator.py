@@ -4,8 +4,8 @@ from rosia.comms.serializers import Serializer
 from rosia.comms.transports import Transport
 from rosia.config import ExecutionConfig
 from rosia.coordinate.Node import NodeRuntime
-from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
-from rosia.coordinate.messages.base import Message, ShutdownMessage
+from rosia.frontend.Connection import OutputPortConnector
+from rosia.coordinate.messages.base import ShutdownMessage
 from rosia.execute import ExecutorController
 from dataclasses import dataclass
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
@@ -51,20 +51,26 @@ class Coordinator:
 
     def diagram(self, rerun_config: RerunConfig = RerunConfig()) -> None:
         self.logger.debug("Render diagram")
-        rosia.rerun_manager.set_rerun_config(rerun_config)
-        rosia.rerun_manager.init()
+        rosia.rerun_manager.init(rerun_config)
         diagram(self.node_infos)
 
-    def execute(self, execution_config: ExecutionConfig = ExecutionConfig()) -> None:
+    def execute(
+        self,
+        execution_config: ExecutionConfig = ExecutionConfig(),
+        rerun_config: RerunConfig = RerunConfig(),
+    ) -> None:
         self.execution_config = execution_config
         self.logger.set_level(execution_config.log_level)
+        self.logger.set_trace(execution_config.trace, rerun_config)
         self.logger.debug(f"Start execution with config: {execution_config}")
         self.logger.debug("Setting up remote nodes and initializing input endpoints...")
         # Setup remote nodes and initialize input endpoints
         for name, node_info in self.node_infos.items():
             executor = ExecutorController(node_info.node)
             node_info.executor = executor
-            node_endpoints = node_info.executor.call("init_remote", execution_config)
+            node_endpoints = node_info.executor.call(
+                "init_remote", execution_config, rerun_config
+            )
             self.node_endpoints.update(node_endpoints)
 
         self.logger.debug("Updating Node copy of input endpoints...")
@@ -132,11 +138,11 @@ class Coordinator:
             )
 
         self.logger.debug("Executing nodes...")
+        start_physical_time = get_physical_time()
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
-            current_physical_time = get_physical_time()
             node_info.executor.call_no_ret(
-                "execute", start_logical_time=current_physical_time
+                "execute", start_logical_time=start_physical_time
             )
 
         self.logger.debug("Waiting for shutdown request...")
@@ -147,6 +153,8 @@ class Coordinator:
             raise ValueError("Expected CoordinatorShutdownMessage")
         shutdown_timestamp = message.timestamp
         status_code = message.status_code
+        self.logger.set_logical_time(shutdown_timestamp)
+        self.logger.set_physical_time(get_physical_time() - start_physical_time)
         for name, node_info in self.node_infos.items():
             self.logger.debug(f"Sending shutdown request to node: {name}")
             self.coordinator_sender_transport = Transport(
@@ -159,35 +167,3 @@ class Coordinator:
             )
         if status_code != 0:
             sys.exit(status_code)
-
-    def set_value(self, port: T, value: T) -> None:
-        """
-        Deprecated
-        """
-        """setting values with timestamps is not supported in the coordinator"""
-        port = cast(InputPortConnector[T], port)  # type: ignore
-
-        assert isinstance(port, InputPortConnector), (
-            "You can only set values on input ports"
-        )
-        if getattr(port, "transport", None) is None:
-            if port.name not in self.node_endpoints:
-                raise ValueError(
-                    f"Endpoint for port {port.name} not found. "
-                    "Make sure execute() has been called first."
-                )
-            endpoint = self.node_endpoints[port.name]
-            port.port_type = ClientType.SENDER
-            port.transport = Transport(ClientType.SENDER, Serializer, endpoint)
-        if port.port_type == ClientType.SENDER:
-            port.set_value(
-                Message(
-                    data=value,
-                    timestamp=None,
-                    next_timestamp=None,
-                    from_port="",
-                    to_port=port.name,
-                )
-            )
-        else:
-            raise Exception("Internal error: Input port is not a sender")
