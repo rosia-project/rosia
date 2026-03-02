@@ -34,7 +34,7 @@ class RerunManager:
         )
 
     def render_diagram(self, diagram: Image.Image) -> None:
-        rr.log("/diagram", rr.Image(np.array(diagram)))
+        rr.log("/diagram", rr.Image(np.array(diagram)), static=True)
 
     def log(
         self,

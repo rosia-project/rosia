@@ -10,6 +10,7 @@ from rosia.execute import ExecutorController
 from dataclasses import dataclass
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
 from rosia.coordinate.messages.base import CoordinatorShutdownRequestMessage
+import logging
 import sys
 from rosia.time.utils import get_physical_time
 from rosia.diagram import diagram
@@ -56,9 +57,16 @@ class Coordinator:
 
     def execute(
         self,
-        execution_config: ExecutionConfig = ExecutionConfig(),
+        trace: bool = False,
+        log_level: str = "INFO",
         rerun_config: RerunConfig = RerunConfig(),
     ) -> None:
+        if log_level.upper() not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            raise ValueError(
+                f"Invalid log level: {log_level}, valid levels are: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+            )
+        log_level_int = getattr(logging, log_level.upper(), logging.INFO)
+        execution_config = ExecutionConfig(trace=trace, log_level=log_level_int)
         self.execution_config = execution_config
         self.logger.set_level(execution_config.log_level)
         self.logger.set_trace(execution_config.trace, rerun_config)

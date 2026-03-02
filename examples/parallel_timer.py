@@ -50,4 +50,4 @@ if __name__ == "__main__":
     int_gen1.output >>= printer.input_int1
     int_gen2.output >>= printer.input_int2
     coor.diagram()
-    coor.execute()
+    coor.execute(trace=True)

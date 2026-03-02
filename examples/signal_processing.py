@@ -15,8 +15,6 @@ from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia import request_shutdown, log
 from rosia.time import s, ms, Time
 from rosia.time.Timer import Timer
-from rosia.config import ExecutionConfig
-from rosia.logging import Logger
 
 
 class Scalar:
@@ -123,4 +121,4 @@ if __name__ == "__main__":
     lpf.output_signal >>= printer.input_signal
 
     coor.diagram()
-    coor.execute(execution_config=ExecutionConfig(trace=True, log_level=Logger.INFO))
+    coor.execute(trace=True, log_level="INFO")

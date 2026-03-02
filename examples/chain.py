@@ -2,7 +2,7 @@ from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia import request_shutdown
 from rosia.time import s
 from rosia import log
-from rosia.config import ExecutionConfig
+
 
 from rosia.time import Timer, Time
 
@@ -55,4 +55,4 @@ if __name__ == "__main__":
     int_gen.output >>= doubler.input_port
     doubler.output_port >>= printer.input_int
     coor.diagram()
-    coor.execute(execution_config=ExecutionConfig(trace=True))
+    coor.execute(trace=True)
