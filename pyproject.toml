@@ -32,11 +32,13 @@ dev = [
     "build",
     "pytest",
     "pytest-timeout",
+    "pytest-xdist",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 timeout = 30
+addopts = "-n auto"
 
 [project.urls]
 Homepage = "https://github.com/rosia-project/rosia"
