@@ -3,6 +3,8 @@ import pytest
 from rosia import InputPort, OutputPort, reaction, Node, Coordinator
 from rosia import request_shutdown
 from rosia.time import s
+from rosia import log
+import time
 
 
 @Node
@@ -12,12 +14,13 @@ class IntGenerator:
     def __init__(self):
         self.count = 1
 
-    @reaction([])
     def start(self):
         while self.count <= 100:
-            print(f"IntGenerator {self.count} starting")
+            log.info(f"IntGenerator sending {self.count}")
             self.output(self.count)
+            time.sleep(0.01)
             self.count += 1
+        request_shutdown(1 * s)
 
 
 @Node
@@ -30,23 +33,22 @@ class Printer:
 
     @reaction([input_int1, input_int2])
     def print_message(self):
-        print(f"Printer received messages: {self.input_int1} {self.input_int2}")
+        log.info(f"Printer received messages: {self.input_int1} {self.input_int2}")
         assert self.input_int1 == self.input_int2
         self.receive_count += 1
-        if self.receive_count >= 100:
-            request_shutdown(0 * s)
 
 
-@pytest.mark.skip
+@pytest.mark.xfail(raises=SystemExit, strict=True)
+@pytest.mark.timeout(30)
 def test_parallel():
-    coor = Coordinator("DEBUG")
+    coor = Coordinator()
     int_gen1 = coor.create_node(IntGenerator())
     int_gen2 = coor.create_node(IntGenerator())
     printer = coor.create_node(Printer())
     int_gen1.output >>= printer.input_int1
     int_gen2.output >>= printer.input_int2
-    for i in range(10):
-        coor.execute()
+
+    coor.execute()
 
 
 if __name__ == "__main__":

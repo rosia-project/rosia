@@ -13,7 +13,7 @@ from rosia.frontend.Annotators import RosiaAnnotations, check_rosia_annotations
 from typing import Any, Dict, Optional, Type, TypeVar, List
 import traceback
 import sys
-from rosia.time import Time, forever
+from rosia.time import Time, forever, never
 import rosia
 from rosia.coordinate.messages.base import (
     ShutdownMessage,
@@ -57,11 +57,11 @@ class NodeRuntime:
         self.input_port_connectors: Dict[str, InputPortConnector[Any]] = {}
         self.output_port_connectors: Dict[str, OutputPortConnector[Any]] = {}
 
-        self.current_time: Time = Time(0)
-        self.next_time: Time = Time(0)
-        self.safe_to_advance_time: Time = Time(
-            0
-        )  # Safe to advance time to any current_time < safe_to_advance_time
+        self.current_time: Time = never
+        self.next_time: Time = never
+        self.safe_to_advance_time: Time = (
+            never  # Safe to advance time to any current_time < safe_to_advance_time
+        )
         self.message_queue: Dict[Time, List[MessageBase[Any]]] = {}
 
         for name, value in self.node_cls.__dict__.items():
@@ -199,7 +199,9 @@ class NodeRuntime:
                         f"Message to_port {message.to_port} not found in node {self.node_name}"
                     )
                 input_port = self.input_port_connectors[message.to_port]
-                if message.timestamp is None and message.next_timestamp is None:
+                if (message.timestamp is None or message.timestamp == never) and (
+                    message.next_timestamp is None or message.next_timestamp == never
+                ):
                     # This is untimestamped message, we process it immediately
                     input_port.set_value(message)
                     input_port._trigger()
@@ -328,6 +330,7 @@ class NodeRuntime:
         except Exception as e:
             print(f"Exception in {self.node_name}: {e}")
             traceback.print_exc()
+            self.request_shutdown(0 * s, status_code=1)
             sys.exit(1)
 
     def request_shutdown(self, delay: Time = Time(0), status_code: int = 0) -> None:

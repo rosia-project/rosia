@@ -98,7 +98,7 @@ class Time:
         return self.value > other.value
 
     def __eq__(self, other) -> bool:
-        assert isinstance(other, Time), "Cannot compare Time to non-Time"
+        assert isinstance(other, Time), f"Cannot compare Time to non-Time {other}"
         return self.value == other.value
 
     def __ne__(self, other) -> bool:

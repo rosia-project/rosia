@@ -158,7 +158,7 @@ class Coordinator:
         message = self.coordinator_receiver_transport.receive()
         self.logger.debug(f"Received shutdown request: {message}")
         if not isinstance(message, CoordinatorShutdownRequestMessage):
-            raise ValueError("Expected CoordinatorShutdownMessage")
+            raise ValueError("Expected CoordinatorShutdownRequestMessage")
         shutdown_timestamp = message.timestamp
         status_code = message.status_code
         if shutdown_timestamp is None:
