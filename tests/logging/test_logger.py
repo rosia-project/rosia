@@ -1,6 +1,7 @@
 import logging
 
-from rosia.logging import Logger, LoggerProxy
+from rosia.logging import Logger
+from rosia.utils import ObjectProxy
 
 
 def test_default_name():
@@ -77,11 +78,11 @@ def test_all_log_methods(capsys):
         assert f"[all] {letter}" in captured.err
 
 
-# --- LoggerProxy tests ---
+# --- ObjectProxy tests ---
 
 
 def test_proxy_delegates_to_logger(capsys):
-    proxy = LoggerProxy(Logger("node"))
+    proxy = ObjectProxy(Logger("node"))
     proxy.set_level(Logger.DEBUG)
     proxy.info("hello")
 
@@ -89,13 +90,13 @@ def test_proxy_delegates_to_logger(capsys):
     assert "[node] hello" in captured.err
 
 
-def test_proxy_set_logger_swaps_underlying(capsys):
+def test_proxy_set_target_swaps_underlying(capsys):
     original = Logger("old")
-    proxy = LoggerProxy(original)
+    proxy = ObjectProxy(original)
 
     new = Logger("new")
     new.set_level(Logger.DEBUG)
-    proxy.set_logger(new)
+    proxy.set_target(new)
     proxy.debug("after swap")
 
     captured = capsys.readouterr()
@@ -104,13 +105,13 @@ def test_proxy_set_logger_swaps_underlying(capsys):
 
 def test_proxy_set_level_forwards():
     inner = Logger()
-    proxy = LoggerProxy(inner)
+    proxy = ObjectProxy(inner)
     proxy.set_level(Logger.ERROR)
     assert inner._level == logging.ERROR
 
 
 def test_proxy_level_filtering(capsys):
-    proxy = LoggerProxy(Logger("p"))
+    proxy = ObjectProxy(Logger("p"))
     proxy.set_level(Logger.WARNING)
 
     proxy.info("hidden")

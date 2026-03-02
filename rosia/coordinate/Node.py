@@ -107,7 +107,7 @@ class NodeRuntime:
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
         self.logger = Logger(self.node_name)
-        rosia.logger.set_logger(self.logger)
+        rosia.logger.set_target(self.logger)  # type: ignore # overwrite the global logger
 
     def init_remote(
         self, execution_config: ExecutionConfig, rerun_config: RerunConfig
