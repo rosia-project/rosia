@@ -1,9 +1,13 @@
 import logging
 
+import rerun as rr
 from rich.console import Console
 
 from rosia.time import Time
 from rosia.rerun import RerunManager
+from collections.abc import Iterable
+from rerun._baseclasses import AsComponents, DescribedComponentBatch
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -51,31 +55,47 @@ class Logger:
             self._rerun_manager = RerunManager()
             self._rerun_manager.init(rerun_config)
 
-    def _log(self, level: int, msg: str) -> None:
+    def _log(self, level: int, msg: str, rerun_subpath: str = "") -> None:
         if self._level <= level:
             style = _LEVEL_STYLES.get(level, "")
             self.console.print(
                 f"[{style}]\\[{self._name}] {msg}[/{style}]", highlight=False
             )
         if self._trace:
-            self._rerun_manager.trace(
-                self._name, self.logical_time, self.physical_time, msg
+            self._rerun_manager.log(
+                f"trace/{self._name}/{rerun_subpath}",
+                rr.TextLog(text=str(msg), level="DEBUG"),
+                self.logical_time,
+                self.physical_time,
+            )
+
+    def rerun(
+        self,
+        msg: AsComponents | Iterable[DescribedComponentBatch],
+        rerun_subpath: str = "",
+    ) -> None:
+        if self._trace:
+            self._rerun_manager.log(
+                f"/logs/{self._name}/{rerun_subpath}",
+                msg,
+                self.logical_time,
+                self.physical_time,
             )
 
     def set_level(self, level: int) -> None:
         self._level = level
 
-    def debug(self, msg: str) -> None:
-        self._log(logging.DEBUG, msg)
+    def debug(self, msg: str, rerun_subpath: str = "") -> None:
+        self._log(logging.DEBUG, msg, rerun_subpath)
 
-    def info(self, msg: str) -> None:
-        self._log(logging.INFO, msg)
+    def info(self, msg: str, rerun_subpath: str = "") -> None:
+        self._log(logging.INFO, msg, rerun_subpath)
 
-    def warning(self, msg: str) -> None:
-        self._log(logging.WARNING, msg)
+    def warning(self, msg: str, rerun_subpath: str = "") -> None:
+        self._log(logging.WARNING, msg, rerun_subpath)
 
-    def error(self, msg: str) -> None:
-        self._log(logging.ERROR, msg)
+    def error(self, msg: str, rerun_subpath: str = "") -> None:
+        self._log(logging.ERROR, msg, rerun_subpath)
 
-    def critical(self, msg: str) -> None:
-        self._log(logging.CRITICAL, msg)
+    def critical(self, msg: str, rerun_subpath: str = "") -> None:
+        self._log(logging.CRITICAL, msg, rerun_subpath)

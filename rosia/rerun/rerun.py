@@ -1,4 +1,3 @@
-from typing import Any
 import rerun as rr
 import rerun.blueprint as rrb
 
@@ -7,6 +6,9 @@ from PIL import Image
 
 from rosia.time import Time
 from typing import TYPE_CHECKING
+from collections.abc import Iterable
+from rerun._baseclasses import AsComponents, DescribedComponentBatch
+
 
 if TYPE_CHECKING:
     from rosia.config import RerunConfig
@@ -34,12 +36,13 @@ class RerunManager:
     def render_diagram(self, diagram: Image.Image) -> None:
         rr.log("/diagram", rr.Image(np.array(diagram)))
 
-    def trace(
-        self, node_name: str, logical_time: Time, physical_time: Time, message: Any
+    def log(
+        self,
+        entity_path: str,
+        message: AsComponents | Iterable[DescribedComponentBatch],
+        logical_time: Time,
+        physical_time: Time,
     ) -> None:
         rr.set_time("logical_time", duration=logical_time.to_unix_time())
         rr.set_time("physical_time", duration=physical_time.to_unix_time())
-        rr.log(
-            f"/trace/{node_name}",
-            rr.TextLog(text=str(message), level="DEBUG"),
-        )
+        rr.log(f"/{entity_path}", message)

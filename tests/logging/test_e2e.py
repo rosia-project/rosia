@@ -18,9 +18,9 @@ def test_logger_output_in_subprocess():
         cwd=_PROJECT_ROOT,
     )
     assert result.returncode == 0
-    assert "[Sink_1] got 0" in result.stderr
-    assert "[Sink_1] got 1" in result.stderr
-    assert "[Sink_1] got 2" in result.stderr
+    assert "[Sink_2] got 0" in result.stderr
+    assert "[Sink_2] got 1" in result.stderr
+    assert "[Sink_2] got 2" in result.stderr
 
 
 @pytest.mark.timeout(30)
@@ -33,4 +33,4 @@ def test_logger_node_name_prefix():
         cwd=_PROJECT_ROOT,
     )
     assert result.returncode == 0
-    assert "[Sink_1]" in result.stderr
+    assert "[Sink_2]" in result.stderr

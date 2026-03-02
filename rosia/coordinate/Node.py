@@ -25,6 +25,7 @@ from rosia.time.utils import get_physical_time
 from rosia.config import ExecutionConfig
 from rosia.logging import Logger
 from rosia.config import RerunConfig
+import rerun as rr
 
 T = TypeVar("T")
 
@@ -273,6 +274,20 @@ class NodeRuntime:
                         get_physical_time() - self.start_logical_time
                     )
                     self.logger.debug(f"{trigger_function.__name__}()")
+                    for input_port in self.input_port_connectors.values():
+                        if trigger_function in input_port.trigger_functions:
+                            if hasattr(input_port.value, "to_rerun"):
+                                self.logger.rerun(
+                                    input_port.value.to_rerun(),
+                                    rerun_subpath=f"{input_port.name}",
+                                )  # type: ignore
+                            else:
+                                self.logger.rerun(
+                                    rr.TextLog(
+                                        text=str(input_port.value), level="DEBUG"
+                                    ),
+                                    rerun_subpath=f"{input_port.name}",
+                                )
                     trigger_function(self.node_instance)
                 except Exception as e:
                     print(f"Exception in trigger function {trigger_function}: {e}")
