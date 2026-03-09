@@ -1,7 +1,7 @@
-import type {ReactNode} from 'react';
-import clsx from 'clsx';
-import Heading from '@theme/Heading';
-import styles from './styles.module.css';
+import type { ReactNode } from "react";
+import clsx from "clsx";
+import Heading from "@theme/Heading";
+import styles from "./styles.module.css";
 
 type FeatureItem = {
   title: string;
@@ -11,37 +11,40 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Performance',
-    image: require('@site/static/img/features/performant.png').default,
+    title: "Performance",
+    image: "/img/features/performant.png",
     description: (
       <>
-          Rosia is designed from the ground up to be performant and efficient with low latency.
+        Rosia is designed from the ground up to be performant and efficient with
+        low latency.
       </>
     ),
   },
   {
-    title: 'Deterministic and Reproducible',
-    image: require('@site/static/img/features/deterministic.png').default,
+    title: "Deterministic and Reproducible",
+    image: "/img/features/deterministic.png",
     description: (
       <>
-        Rosia is deterministic and reproducible, ensuring that the same results are obtained regardless of the runtime.
+        Rosia is deterministic and reproducible, ensuring that the same results
+        are obtained regardless of the runtime.
       </>
     ),
   },
   {
-    title: 'Fully Pythonic',
-    image: require('@site/static/img/features/python.png').default,
+    title: "Fully Pythonic",
+    image: "/img/features/python.png",
     description: (
       <>
-        Rosia is designed to be fully Pythonic, allowing you to use it in your existing Python projects.
+        Rosia is designed to be fully Pythonic, allowing you to use it in your
+        existing Python projects.
       </>
     ),
   },
 ];
 
-function Feature({title, image, description}: FeatureItem) {
+function Feature({ title, image, description }: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
+    <div className={clsx("col col--4")}>
       <div className="text--center">
         <img className={styles.featureSvg} role="img" src={image} alt={title} />
       </div>

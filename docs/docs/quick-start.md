@@ -15,6 +15,7 @@ pip install rosia
 ```
 
 Install from source:
+
 ```bash
 git clone https://github.com/rosia-project/rosia.git
 cd rosia
