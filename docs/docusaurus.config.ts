@@ -6,7 +6,8 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Rosia",
-  tagline: "Rosia is a reproducible robotics framework",
+  tagline:
+    "Rosia is a reproducible robotics framework, currently in alpha testing.",
   favicon: "img/favicon.ico",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
