@@ -36,4 +36,4 @@ if __name__ == "__main__":
     sink = coor.create_node(Sink())
     timer.output_timer >>= src.input_port
     src.output >>= sink.input_port
-    coor.execute()
+    coor.execute(timeout=10)

@@ -60,6 +60,7 @@ class Coordinator:
         trace: bool = False,
         log_level: str = "INFO",
         rerun_config: RerunConfig = RerunConfig(),
+        timeout: Optional[float] = None,
     ) -> None:
         if log_level.upper() not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
             raise ValueError(
@@ -111,7 +112,7 @@ class Coordinator:
                 return
             propagated.append(port.name)
             if port.name in output_port_safe_to_advance_time:
-                port.set_next_timestamp(
+                port.set_ENT(
                     min(
                         port.safe_to_advance_time,
                         output_port_safe_to_advance_time[port.name],
@@ -124,7 +125,7 @@ class Coordinator:
             for downstream_port in port.downstream_ports:
                 downstream_port.update_safe_to_advance_time()
                 for affected_output_port in downstream_port.affected_output_ports:
-                    affected_output_port.set_next_timestamp(
+                    affected_output_port.set_ENT(
                         min(
                             affected_output_port.safe_to_advance_time,
                             downstream_port.safe_to_advance_time,
@@ -154,13 +155,21 @@ class Coordinator:
             )
 
         self.logger.debug("Waiting for shutdown request...")
-        self.coordinator_receiver_transport.wait_for_message()
-        message = self.coordinator_receiver_transport.receive()
-        self.logger.debug(f"Received shutdown request: {message}")
-        if not isinstance(message, CoordinatorShutdownRequestMessage):
-            raise ValueError("Expected CoordinatorShutdownRequestMessage")
-        shutdown_timestamp = message.timestamp
-        status_code = message.status_code
+        timeout_ms = int(timeout * 1000) if timeout is not None else -1
+        has_message = self.coordinator_receiver_transport.wait_for_message(
+            timeout=timeout_ms
+        )
+        if not has_message:
+            self.logger.debug("Timeout reached, initiating shutdown...")
+            shutdown_timestamp = get_physical_time() - start_physical_time
+            status_code = 0
+        else:
+            message = self.coordinator_receiver_transport.receive()
+            self.logger.debug(f"Received shutdown request: {message}")
+            if not isinstance(message, CoordinatorShutdownRequestMessage):
+                raise ValueError("Expected CoordinatorShutdownRequestMessage")
+            shutdown_timestamp = message.timestamp
+            status_code = message.status_code
         if shutdown_timestamp is None:
             raise ValueError("Shutdown timestamp is None")
         self.logger.set_logical_time(shutdown_timestamp)

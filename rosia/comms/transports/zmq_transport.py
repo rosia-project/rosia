@@ -41,12 +41,12 @@ class ZMQTransport(TransportBase):
         else:
             return None
 
-    def wait_for_message(self) -> None:
+    def wait_for_message(self, timeout: int = -1) -> bool:
         assert self.type == ClientType.RECEIVER, (
             "Cannot wait for a message on a sender socket."
         )
-        self.socket.poll(-1, zmq.POLLIN)  # Infinite timeout
-        return
+        result = self.socket.poll(timeout, zmq.POLLIN)
+        return result != 0
 
     def close(self):
         self.socket.close()

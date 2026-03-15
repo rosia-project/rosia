@@ -6,6 +6,7 @@ from rosia.frontend import (
 )
 from rosia.coordinate import Coordinator as Coordinator
 from rosia.coordinate import request_shutdown as request_shutdown
+from rosia.coordinate import advance_time as advance_time
 from rosia.rerun import RerunManager as RerunManager
 from rosia.logging import Logger as Logger
 from rosia.utils import ObjectProxy as ObjectProxy
@@ -19,4 +20,9 @@ if TYPE_CHECKING:
 
 
 # Monkey patches
-node_runtime_instance = None
+node_runtime_instance = None  # type: ignore
+
+if TYPE_CHECKING:
+    from rosia.coordinate.Node import NodeRuntime
+
+    node_runtime_instance: "NodeRuntime"

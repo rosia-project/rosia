@@ -6,19 +6,20 @@ from rosia.coordinate.Port import (
     OutputPortRuntimeObj,
 )
 from rosia.frontend.Connection import InputPortConnector, OutputPortConnector
-from rosia.coordinate.messages.base import Message, MessageBase
+from rosia.coordinate.messages.base import Message
 from rosia.frontend.Port import InputPort, OutputPort
 from rosia.utils import clone_class_detached, empty_function
 from rosia.frontend.Annotators import RosiaAnnotations, check_rosia_annotations
 from typing import Any, Dict, Optional, Type, TypeVar, List
 import traceback
 import sys
-from rosia.time import Time, forever, never
+from rosia.time import Time, forever
 import rosia
 from rosia.coordinate.messages.base import (
     ShutdownMessage,
     CoordinatorShutdownRequestMessage,
 )
+from rosia.coordinate.Events import InputPortEvent, ShutdownEvent, EventQueue
 from rosia.time import s
 import inspect
 from rosia.time.utils import get_physical_time
@@ -57,13 +58,9 @@ class NodeRuntime:
         self.input_port_connectors: Dict[str, InputPortConnector[Any]] = {}
         self.output_port_connectors: Dict[str, OutputPortConnector[Any]] = {}
 
-        self.current_logical_time: Time = Time(0)
-        self.next_time: Time = Time(0)
-        self.safe_to_advance_time: Time = (
-            never  # Safe to advance time to any current_time < safe_to_advance_time
-        )
-        self.shutdown_time: Time = forever
-        self.message_queue: Dict[Time, List[MessageBase[Any]]] = {}
+        self.logical_time: Time = Time(0)
+        self.STAT: Time = forever
+        self.shutdown_requested: bool = False
 
         for name, value in self.node_cls.__dict__.items():
             if isinstance(value, OutputPort):
@@ -109,6 +106,7 @@ class NodeRuntime:
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
         self.logger = Logger(self.node_name)
+        self.event_queue = EventQueue(self.logger)
 
     def init_remote(
         self, execution_config: ExecutionConfig, rerun_config: RerunConfig
@@ -170,47 +168,22 @@ class NodeRuntime:
         for input_port in self.input_port_connectors.values():
             for output_port in input_port.upstream_ports:
                 if output_port.name in output_port_to_sta.keys():
-                    output_port.set_next_timestamp(output_port_to_sta[output_port.name])
+                    output_port.set_ENT(output_port_to_sta[output_port.name])
             input_port.update_safe_to_advance_time()
 
-    def update_safe_to_advance_time(self) -> None:
+    def update_STAT(self) -> None:
         min_safe_to_advance_time = forever
         for input_port in self.input_port_connectors.values():
             min_safe_to_advance_time = min(
                 min_safe_to_advance_time, input_port.safe_to_advance_time
             )
         self.logger.debug(
-            f"STA advanced: {self.node_name} {self.safe_to_advance_time} -> {min_safe_to_advance_time}"
+            f"STAT updated: {self.node_name} {self.STAT} -> {min_safe_to_advance_time}"
         )
-        self.safe_to_advance_time = min_safe_to_advance_time
+        self.STAT = min_safe_to_advance_time
 
-    def advance_logical_time(self, to_time: Time) -> None:
-        if to_time > self.safe_to_advance_time:
-            self.logger.warning(
-                f"Attempted to advance logical time to {to_time} which is greater than the safe to advance time {self.safe_to_advance_time}"
-            )
-        self.current_logical_time = to_time
-
-    def check_shutdown(self) -> None:
-        self.logger.debug(f"message queue: {len(self.message_queue)}")
-        self.logger.debug(
-            f"Checking shutdown for node {self.node_name} at time {self.current_logical_time}, STA {self.safe_to_advance_time}, shutdown time {self.shutdown_time}"
-        )
-        if (
-            self.shutdown_time != forever
-            and self.current_logical_time >= self.shutdown_time
-        ):
-            self.logger.debug(
-                f"Shutting down node {self.node_name} at time {self.shutdown_time}"
-            )
-            if hasattr(self.node_instance, "shutdown"):
-                self.node_instance.shutdown()
-                sys.exit(0)
-            else:
-                sys.exit(0)
-
-    def receive_messages(self) -> None:
-        while True:  # Empty the message queue
+    def drain_message_queue(self) -> None:
+        while True:
             message: Optional[Message[Any]] = self.transport.receive()
             if message is None:
                 break
@@ -221,10 +194,8 @@ class NodeRuntime:
                 )
                 if message.timestamp is None:
                     raise ValueError("Shutdown message timestamp is None")
-                self.shutdown_time = message.timestamp
-                self.check_shutdown()
+                self.event_queue.push_shutdown_event(message.timestamp)
             elif isinstance(message, Message):
-                # Demux message to the correct input port based on to_port
                 if message.to_port is None:
                     raise ValueError(f"Message missing to_port field: {message}")
                 if message.to_port not in self.input_port_connectors:
@@ -232,112 +203,113 @@ class NodeRuntime:
                         f"Message to_port {message.to_port} not found in node {self.node_name}"
                     )
                 input_port = self.input_port_connectors[message.to_port]
-                if (message.timestamp is None or message.timestamp == never) and (
-                    message.next_timestamp is None or message.next_timestamp == never
-                ):
-                    # This is untimestamped message, we process it immediately
-                    input_port.set_value(message)
-                    input_port._trigger()
-                if message.next_timestamp is not None:
+
+                # Update ENT on upstream output port
+                if message.ENT is not None:
                     from_output_port_name = message.from_port
                     if from_output_port_name is not None:
-                        # Coordinator.set_value will have from_port set to None
                         from_output_port = input_port.get_upstream_port_by_name(
                             from_output_port_name
                         )
                         from_output_port.safe_to_advance_time = max(
                             from_output_port.safe_to_advance_time,
-                            message.next_timestamp,
+                            message.ENT,
                         )
                         input_port.update_safe_to_advance_time()
+
+                # Insert into event queue
                 if message.timestamp is not None:
-                    if message.timestamp not in self.message_queue:
-                        self.message_queue[message.timestamp] = [message]
-                    else:
-                        self.message_queue[message.timestamp].append(message)
-                else:
-                    # it is simply a coordination message to update the STA
-                    pass
+                    self.event_queue.push_input_port_event(
+                        message.timestamp, input_port, message.data
+                    )
             else:
                 raise ValueError(
                     f"Unexpected message type: [{type(message)}] {message}"
                 )
 
-    def process_messages(self, advance_until: Time = forever) -> None:
-        ready_timestamps = [
-            timestamp
-            for timestamp in self.message_queue.keys()
-            if timestamp < self.safe_to_advance_time and timestamp <= advance_until
-        ]
-        ready_timestamps.sort()
-        for i in range(len(ready_timestamps)):
-            timestamp = ready_timestamps[i]
-            self.advance_logical_time(timestamp)
+    def advance_logical_time(self, to_time: Time) -> None:
+        while self.event_queue and self.event_queue.peek_time() < to_time:
+            event = self.event_queue.pop()
+            self.logical_time = event.timestamp
 
-            self.next_time = (
-                ready_timestamps[i + 1]
-                if i < len(ready_timestamps) - 1
-                else self.safe_to_advance_time
-            )
-            messages = self.message_queue[timestamp]
-            trigger_functions = set()
-            # Sort messages by from_port to avoid nondeterministic behavior
-            sorted_messages = sorted(
-                messages,
-                key=lambda x: x.timestamp if x.timestamp is not None else forever,
-            )
-            affected_output_ports: List[OutputPortConnector[Any]] = []
-            for msg in sorted_messages:
-                if isinstance(msg, Message):
-                    input_port = self.input_port_connectors[msg.to_port]
-                    input_port.set_value(msg)
-                    affected_output_ports.extend(input_port.affected_output_ports)
-                    trigger_functions.update(input_port.trigger_functions)
-            del self.message_queue[timestamp]
+            if isinstance(event, ShutdownEvent):
+                self.shutdown_requested = True
+                return
 
-            for trigger_function in trigger_functions:
-                try:
-                    self.logger.set_logical_time(self.current_logical_time)
-                    self.logger.set_physical_time(
-                        get_physical_time() - self.start_logical_time
-                    )
-                    self.logger.debug(f"{trigger_function.__name__}()")
-                    for input_port in self.input_port_connectors.values():
-                        if trigger_function in input_port.trigger_functions:
-                            if hasattr(input_port.value, "to_rerun"):
-                                self.logger.rerun(
-                                    input_port.value.to_rerun(),  # type: ignore
-                                    rerun_subpath=f"{input_port.name}",
-                                )
-                            else:
-                                self.logger.rerun(
-                                    rr.TextLog(
-                                        text=str(input_port.value), level="DEBUG"
-                                    ),
-                                    rerun_subpath=f"{input_port.name}",
-                                )
-                    trigger_function(self.node_instance)
-                except Exception as e:
-                    print(f"Exception in trigger function {trigger_function}: {e}")
-                    traceback.print_exc()
-                    self.request_shutdown(0 * s, status_code=1)
-                    sys.exit(1)
-            for output_port in affected_output_ports:
-                # The output may not be set by the user code, but we need to update the downstream STA
-                output_port._set_value(None, None, self.next_time)
-            self.check_shutdown()
+            if isinstance(event, InputPortEvent):
+                # Set port values
+                for port, payload in event.input_port_values.items():
+                    port.set_value_from_event(payload)
+
+                # Collect and trigger reactions
+                trigger_functions = set()
+                affected_output_ports: List[OutputPortConnector[Any]] = []
+                for port in event.input_port_values:
+                    trigger_functions.update(port.trigger_functions)
+                    affected_output_ports.extend(port.affected_output_ports)
+
+                for trigger_function in trigger_functions:
+                    try:
+                        self.logger.set_logical_time(self.logical_time)
+                        self.logger.set_physical_time(
+                            get_physical_time() - self.start_logical_time
+                        )
+                        self.logger.debug(f"{trigger_function.__name__}()")
+                        for input_port in self.input_port_connectors.values():
+                            if trigger_function in input_port.trigger_functions:
+                                if hasattr(input_port.value, "to_rerun"):
+                                    self.logger.rerun(
+                                        input_port.value.to_rerun(),  # type: ignore
+                                        rerun_subpath=f"{input_port.name}",
+                                    )
+                                else:
+                                    self.logger.rerun(
+                                        rr.TextLog(
+                                            text=str(input_port.value), level="DEBUG"
+                                        ),
+                                        rerun_subpath=f"{input_port.name}",
+                                    )
+                        trigger_function(self.node_instance)
+                    except Exception as e:
+                        print(f"Exception in trigger function {trigger_function}: {e}")
+                        traceback.print_exc()
+                        self.request_shutdown(0 * s, status_code=1)
+                        return
+
+                # Recompute STAT after processing each event
+                self.update_STAT()
+
+                # Send ENT updates to affected output ports
+                ent = min(self.STAT, self.event_queue.peek_data_time())
+                for output_port in affected_output_ports:
+                    output_port._set_value(None, None, ent)
+
+    def advance_time(self, delta: Time) -> None:
+        target_time = self.logical_time + delta
+        while self.logical_time < target_time:
+            if self.shutdown_requested:
+                return
+            self.drain_message_queue()
+            self.update_STAT()
+            if self.STAT > self.logical_time:
+                advance_to = min(target_time, self.STAT)
+                self.advance_logical_time(to_time=advance_to)
+                if self.shutdown_requested:
+                    return
+                if not self.event_queue or self.event_queue.peek_time() >= advance_to:
+                    self.logical_time = advance_to
+            else:
+                self.transport.wait_for_message()
 
     def event_loop(self) -> None:
-        while True:
-            self.receive_messages()
-            self.update_safe_to_advance_time()
+        while not self.shutdown_requested:
+            self.drain_message_queue()
+            self.update_STAT()
             self.logger.debug("Event loop processing messages")
-            self.process_messages()
-            # Blocking wait for messages on the single node transport
-            if not self.message_queue:
-                # if self.shutdown_time != forever and self.safe_to_advance_time >= self.shutdown_time:
-                #     self.advance_logical_time(self.safe_to_advance_time)
-                #     self.check_shutdown()
+
+            if self.event_queue and self.event_queue.peek_time() < self.STAT:
+                self.advance_logical_time(to_time=self.STAT)
+            else:
                 self.transport.wait_for_message()
 
     def execute(self, start_logical_time: Time) -> None:
@@ -356,8 +328,14 @@ class NodeRuntime:
                         f"Node {self.node_name} has a start method with an unexpected signature: {inspect.signature(self.node_instance.start)}"
                     )
             self.event_loop()
+            # Shutdown after loop exits
+            if hasattr(self.node_instance, "shutdown"):
+                self.node_instance.shutdown()
+            sys.exit(0)
         except KeyboardInterrupt:
             print("KeyboardInterrupt received, shutting down")
+            if hasattr(self.node_instance, "shutdown"):
+                self.node_instance.shutdown()
             sys.exit(0)
         except Exception as e:
             print(f"Exception in {self.node_name}: {e}")
@@ -366,10 +344,9 @@ class NodeRuntime:
             sys.exit(1)
 
     def request_shutdown(self, delay: Time = Time(0), status_code: int = 0) -> None:
-        shutdown_timestamp = self.current_logical_time + delay
-        self.shutdown_time = shutdown_timestamp
+        shutdown_timestamp = self.logical_time + delay
         self.logger.debug(
-            f"Requesting shutdown in {delay} seconds at time {shutdown_timestamp}"
+            f"Requesting shutdown in {delay} at time {shutdown_timestamp}"
         )
         self.coordinator_receiver_transport.send(
             CoordinatorShutdownRequestMessage(

@@ -25,10 +25,16 @@ class TransportBase(ABC):
         """Receive an already available message from the transport. Returns None if no message is available."""
 
     @abstractmethod
-    def wait_for_message(self) -> None:
-        """Wait for a message to be available on the transport. Blocks until a message is available.
+    def wait_for_message(self, timeout: int = -1) -> bool:
+        """Wait for a message to be available on the transport.
 
         This method does not return or consume the message. Use receive() to get the message.
+
+        Args:
+            timeout: Timeout in milliseconds. -1 means wait forever.
+
+        Returns:
+            True if a message is available, False if timed out.
         """
 
     @abstractmethod

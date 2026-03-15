@@ -82,6 +82,14 @@ class InputPortConnector(PortConnector[T]):
             self.value = msg.data
             self.input_port_runtime_object._set_value(msg.data)
 
+    def set_value_from_event(self, value: T) -> None:
+        self.value = value
+        self.input_port_runtime_object._set_value(value)
+
+    def clear_value(self) -> None:
+        self.value = None
+        self.input_port_runtime_object._set_value(None)
+
     def _trigger(self) -> None:
         for function in self.trigger_functions:
             function(self.owner.node_instance)
@@ -99,7 +107,7 @@ class OutputPortConnector(PortConnector[T]):
         self.endpoint = None
         self.safe_to_advance_time: Time = forever
 
-    def set_next_timestamp(self, first_timestamp: Time) -> None:
+    def set_ENT(self, first_timestamp: Time) -> None:
         self.safe_to_advance_time = first_timestamp
 
     def set_value(self, value: T) -> None:
@@ -109,14 +117,14 @@ class OutputPortConnector(PortConnector[T]):
         self,
         value: T,
         timestamp: Optional[Time] = None,
-        next_timestamp: Optional[Time] = None,
+        ENT: Optional[Time] = None,
     ) -> None:
         for downstream_port in self.downstream_ports:
             downstream_port.set_value(
                 Message(
                     data=value,
                     timestamp=timestamp,
-                    next_timestamp=next_timestamp,
+                    ENT=ENT,
                     from_port=self.name,
                     to_port=downstream_port.name,
                 )

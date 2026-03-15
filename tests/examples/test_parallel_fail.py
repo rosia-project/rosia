@@ -16,7 +16,6 @@ class IntGenerator:
 
     def start(self):
         while self.count <= 100:
-            log.info(f"IntGenerator sending {self.count}")
             self.output(self.count)
             time.sleep(0.01)
             self.count += 1

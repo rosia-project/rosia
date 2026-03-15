@@ -51,4 +51,4 @@ def test_parallel_timed_interleave():
     timer2.output_timer >>= int_gen2.timer
     int_gen1.output >>= printer.input_int1
     int_gen2.output >>= printer.input_int2
-    coor.execute()
+    coor.execute(timeout=10)

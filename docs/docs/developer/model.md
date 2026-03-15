@@ -84,15 +84,12 @@ STAT can be computed from node state. Each node maintains two queues:
 - Message Queue: this is maintained by the transport layer.
 - Event Queue: ordered by timestamp, every event maps to a set of messages.
 
-STAT is the minimum of:
+STAT is the minimum ENT of all upstream ports of all input ports.
 
-1. The minimum ENT of all upstream ports of all input ports.
-2. The minimum timestamp on the event queue.
+STAT should be updated when:
 
-So the STAT should be updated when
-
-1. After a event is processed.
-2. After a message queue received a new message (potentially different ENT)
+1. After an event is processed.
+2. After the message queue received a new message (potentially different ENT).
 
 ## Node Synchronization
 
@@ -109,8 +106,9 @@ def RosiaReaction():
 
 With each message that is sent out, two associated values are also sent: `timestamp` and `ENT`.
 
-- **Timestamp**: the timestamp $t$ of the message, which is the same as logical time of the node.
-- **Earliest Next Timestamp (ENT)**: an ENT of timestamp $g$ is a promise that this output port will not send another message with timestamp $t'$ < $g$. Since $t <= t'$ of the current message timestamp, this means $t < g$, and an error will
+- **Timestamp**: the timestamp $t$ of the message, which is the same as logical time of the node. A port cannot send multiple messages at the same timestamp — doing so will raise an error. To send multiple messages, the node must advance
+  its logical time between sends.
+- **Earliest Next Timestamp (ENT)**: an ENT of timestamp $g$ is a promise that this output port will not send another message with timestamp $t'$ < $g$. Since $t < t'$ of the current message timestamp, this means $t < g$, and an error will
   be thrown otherwise.
 
 ENT has a dual purpose. First, it tells the downstream node to not advance to time $t >= g$ and wait for a message from this port. On the other hand, it tells the downstream node that this port is not opposed to it advancing to any time
@@ -123,4 +121,4 @@ required, for example, when creating a simulator node.
 
 `timestamp` and `ENT` can be omitted by the user.
 
-- `timestamp = None` and `ENT = None`: use the current logical time as `timestamp` and Safe to Advance Time (STAT) as `ENT`.
+- `timestamp = None` and `ENT = None`: use the current logical time as `timestamp` and `min(STAT, next_pending_event_time)` as `ENT`. The next pending event time only considers data events, not shutdown events.

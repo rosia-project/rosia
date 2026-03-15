@@ -1,9 +1,10 @@
 from typing import Any, Generic, Optional, TypeVar, TYPE_CHECKING
+import sys
 
 from rosia.time import Time
 
 if TYPE_CHECKING:
-    from rosia.coordinate.Coordinator import NodeRuntime
+    from rosia.coordinate.Node import NodeRuntime
     from rosia.frontend.Connection import OutputPortConnector
 
 T = TypeVar("T")
@@ -41,36 +42,30 @@ class OutputPortRuntimeObj(Generic[T]):
     def __set__(self, value: T) -> None:
         raise TypeError("OutputPortRuntimeObj is immutable")
 
-    def set_next_timestamp(self, first_timestamp: Time) -> None:
-        self.output_port_connector.set_next_timestamp(first_timestamp)
+    def set_ENT(self, first_timestamp: Time) -> None:
+        self.output_port_connector.set_ENT(first_timestamp)
 
     def __call__(
         self,
         value: T,
         timestamp: Optional[Time] = None,
-        next_timestamp: Optional[Time] = None,
+        ENT: Optional[Time] = None,
     ) -> None:
         if timestamp is not None:
-            if next_timestamp is None:
-                raise ValueError(
-                    "next_timestamp must be provided if timestamp is provided"
-                )
-            if timestamp > next_timestamp:
-                raise ValueError(
-                    f"Timestamp {timestamp} is greater than next_timestamp {next_timestamp}"
-                )
+            if ENT is None:
+                raise ValueError("ENT must be provided if timestamp is provided")
+            if timestamp > ENT:
+                raise ValueError(f"Timestamp {timestamp} is greater than ENT {ENT}")
         else:
-            assert next_timestamp is None, (
-                "If timestamp is not provided, next_timestamp must be None"
+            assert ENT is None, "If timestamp is not provided, ENT must be None"
+        # Drain and process messages (needed for nodes that send from start())
+        self.node_runtime.drain_message_queue()
+        self.node_runtime.update_STAT()
+        if self.node_runtime.shutdown_requested:
+            sys.exit(0)
+        if timestamp is None:
+            timestamp = self.node_runtime.logical_time
+            ENT = min(
+                self.node_runtime.STAT, self.node_runtime.event_queue.peek_data_time()
             )
-            timestamp = self.node_runtime.current_logical_time
-            next_timestamp = self.node_runtime.next_time
-        self.node_runtime.receive_messages()
-        self.node_runtime.update_safe_to_advance_time()
-        self.node_runtime.process_messages(advance_until=timestamp)
-        self.node_runtime.advance_logical_time(timestamp)
-        print(
-            f"Setting value {value} at time {timestamp}, next timestamp {next_timestamp}"
-        )
-        self.output_port_connector._set_value(value, timestamp, next_timestamp)
-        self.node_runtime.check_shutdown()
+        self.output_port_connector._set_value(value, timestamp, ENT)

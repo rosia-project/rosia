@@ -42,4 +42,4 @@ def test_timer_chain():
     printer = coor.create_node(Printer())
     timer_node.output_timer >>= int_generator.input_port
     int_generator.output_port >>= printer.input_timer
-    coor.execute()
+    coor.execute(timeout=10)
