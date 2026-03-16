@@ -351,8 +351,8 @@ class NodeRuntime:
                 self.advance_logical_time(to_time=self.STAT)
             elif not self.event_queue and self._all_upstream_done():
                 self.send_no_more_messages()
-                self.request_shutdown(0 * s, status_code=0)
                 self.shutdown_requested = True
+                self.request_shutdown(0 * s, status_code=0)
             else:
                 self.transport.wait_for_message()
 

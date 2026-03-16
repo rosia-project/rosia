@@ -170,6 +170,12 @@ class Coordinator:
                 raise ValueError("Expected CoordinatorShutdownRequestMessage")
             shutdown_timestamp = message.timestamp
             status_code = message.status_code
+        # Drain any additional shutdown requests that arrived
+        while True:
+            extra = self.coordinator_receiver_transport.receive()
+            if extra is None:
+                break
+            self.logger.warning(f"Ignoring additional shutdown request: {extra}")
         if shutdown_timestamp is None:
             raise ValueError("Shutdown timestamp is None")
         self.logger.set_logical_time(shutdown_timestamp)

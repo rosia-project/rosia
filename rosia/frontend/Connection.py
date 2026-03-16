@@ -87,10 +87,6 @@ class InputPortConnector(PortConnector[T]):
         self.value = value
         self.input_port_runtime_object._set_value(value)
 
-    def clear_value(self) -> None:
-        self.value = None
-        self.input_port_runtime_object._set_value(None)
-
     def _trigger(self) -> None:
         for function in self.trigger_functions:
             function(self.owner.node_instance)
