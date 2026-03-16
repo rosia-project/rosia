@@ -50,10 +50,16 @@ class Coordinator:
         self.logger.debug(f"Create node: {node_name}")
         return cast(T, node_runtime)
 
-    def diagram(self, rerun_config: RerunConfig = RerunConfig()) -> None:
+    def diagram(
+        self,
+        rerun_config: RerunConfig = RerunConfig(),
+        save_to: Optional[str] = None,
+        rerun: bool = True,
+    ) -> None:
         self.logger.debug("Render diagram")
-        rosia.rerun_manager.init(rerun_config)
-        diagram(self.node_infos)
+        if rerun:
+            rosia.rerun_manager.init(rerun_config)
+        diagram(self.node_infos, save_to=save_to, rerun=rerun)
 
     def execute(
         self,

@@ -53,15 +53,31 @@ class Graph:
     edges: List[Edge] = field(default_factory=list)
 
 
-def diagram(node_infos: "Dict[str, NodeRuntimeInfo]") -> None:
-    """Main entry point: build graph, layout with ELK, and render to rerun."""
+def diagram(
+    node_infos: "Dict[str, NodeRuntimeInfo]",
+    save_to: Optional[str] = None,
+    rerun: bool = True,
+) -> None:
+    """Main entry point: build graph, layout with ELK, and render.
+
+    Args:
+        node_infos: Node runtime info from the coordinator.
+        save_to: If provided, save the diagram image to this file path.
+        rerun: If True, send the diagram to the rerun viewer.
+    """
     if not node_infos:
         return
 
     graph = build_graph(node_infos)
     layout_graph(graph)
-    rosia.rerun_manager.send_blueprint()
-    rosia.rerun_manager.render_diagram(render_graph(graph))
+    image = render_graph(graph)
+
+    if save_to:
+        image.save(save_to)
+
+    if rerun:
+        rosia.rerun_manager.send_blueprint()
+        rosia.rerun_manager.render_diagram(image)
 
 
 def build_graph(node_infos: "Dict[str, NodeRuntimeInfo]") -> Graph:
