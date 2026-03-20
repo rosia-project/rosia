@@ -100,56 +100,56 @@ class Coordinator:
             assert node_info.executor is not None
             node_info.executor.call("init_node_instance")
 
-        self.logger.debug("Collecting output port safe to advance times...")
-        # Collect output port safe to advance times
-        output_port_safe_to_advance_time = {}
+        self.logger.debug("Collecting output port safe to advance to values...")
+        # Collect output port safe to advance to values
+        output_port_safe_to_advance_to = {}
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
-            output_port_safe_to_advance_time.update(
-                node_info.executor.call("get_output_port_ENT")
+            output_port_safe_to_advance_to.update(
+                node_info.executor.call("get_output_port_DSTAT")
             )
 
-        self.logger.debug("Propagating output port ENTs...")
+        self.logger.debug("Propagating output port DSTATs...")
 
-        def propage_output_ENT(
+        def propagate_output_DSTAT(
             port: OutputPortConnector, propagated: List[str]
         ) -> None:
             if port.name in propagated:
                 return
             propagated.append(port.name)
-            if port.name in output_port_safe_to_advance_time:
-                port.set_ENT(
+            if port.name in output_port_safe_to_advance_to:
+                port.set_DSTAT(
                     min(
-                        port.safe_to_advance_time,
-                        output_port_safe_to_advance_time[port.name],
+                        port.safe_to_advance_to,
+                        output_port_safe_to_advance_to[port.name],
                     )
                 )
-                output_port_safe_to_advance_time[port.name] = min(
-                    output_port_safe_to_advance_time[port.name],
-                    port.safe_to_advance_time,
+                output_port_safe_to_advance_to[port.name] = min(
+                    output_port_safe_to_advance_to[port.name],
+                    port.safe_to_advance_to,
                 )
             for downstream_port in port.downstream_ports:
-                downstream_port.update_safe_to_advance_time()
+                downstream_port.update_safe_to_advance_to()
                 for affected_output_port in downstream_port.affected_output_ports:
-                    affected_output_port.set_ENT(
+                    affected_output_port.set_DSTAT(
                         min(
-                            affected_output_port.safe_to_advance_time,
-                            downstream_port.safe_to_advance_time,
+                            affected_output_port.safe_to_advance_to,
+                            downstream_port.safe_to_advance_to,
                         )
                     )
-                    propage_output_ENT(affected_output_port, propagated)
+                    propagate_output_DSTAT(affected_output_port, propagated)
 
         for name, node_info in self.node_infos.items():
             for output_port in node_info.node.output_port_connectors.values():
-                propage_output_ENT(output_port, propagated=[])
+                propagate_output_DSTAT(output_port, propagated=[])
 
-        self.logger.debug("Updating ports ENTs...")
-        # Update ports ENTs
+        self.logger.debug("Updating ports DSTATs...")
+        # Update ports DSTATs
         for name, node_info in self.node_infos.items():
             assert node_info.executor is not None
             node_info.executor.call(
-                "set_output_port_ENT",
-                output_port_safe_to_advance_time,
+                "set_output_port_DSTAT",
+                output_port_safe_to_advance_to,
             )
 
         self.logger.debug("Executing nodes...")

@@ -14,13 +14,13 @@ The initialization stage is orchestrated by the `Coordinator.execute()` method. 
 
 2. **Output Transport Initialization**: Each node is updated with the endpoints of all downstream nodes. ZeroMQ PUSH sockets are created for each output port connection, so nodes can send messages to their downstream recipients.
 
-3. **Node Instance Initialization**: The user's `__init__` method is called on each node. This is where nodes load models, allocate resources, and set initial ENT values. Nodes do not communicate during this step.
+3. **Node Instance Initialization**: The user's `__init__` method is called on each node. This is where nodes load models, allocate resources, and set initial DSTAT values. Nodes do not communicate during this step.
 
-4. **Collect Output Port ENT**: The coordinator gathers the initial ENT (Earliest Next Timestamp) from all output ports. ENT is a promise about future message timestamps that prevents nodes from waiting indefinitely.
+4. **Collect Output Port DSTAT**: The coordinator gathers the initial DSTAT (Downstream Safe To Advance To) from all output ports. DSTAT is a promise about future message timestamps that prevents nodes from waiting indefinitely.
 
-5. **Propagate ENT Through Graph**: ENT values are recursively propagated from source nodes through port connections. Each downstream input port's safe-to-advance-time is updated based on upstream output port ENTs.
+5. **Propagate DSTAT Through Graph**: DSTAT values are recursively propagated from source nodes through port connections. Each downstream input port's safe-to-advance-to is updated based on upstream output port DSTATs.
 
-6. **Update Port ENTs**: The computed ENT values are pushed back to all nodes, so each node has the correct initial safe-to-advance-time on all its ports.
+6. **Update Port DSTATs**: The computed DSTAT values are pushed back to all nodes, so each node has the correct initial safe-to-advance-to on all its ports.
 
 ## Startup
 

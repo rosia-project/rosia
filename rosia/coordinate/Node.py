@@ -159,31 +159,31 @@ class NodeRuntime:
             self.node_instance, *self.node_init_args.args, **self.node_init_args.kwargs
         )
 
-    def get_output_port_ENT(self) -> Dict[str, Time]:
-        output_port_safe_to_advance_time = {}
+    def get_output_port_DSTAT(self) -> Dict[str, Time]:
+        output_port_safe_to_advance_to = {}
         for output_port in self.output_port_connectors.values():
-            output_port_safe_to_advance_time[output_port.name] = (
-                output_port.safe_to_advance_time
+            output_port_safe_to_advance_to[output_port.name] = (
+                output_port.safe_to_advance_to
             )
-        return output_port_safe_to_advance_time
+        return output_port_safe_to_advance_to
 
-    def set_output_port_ENT(self, output_port_to_sta: Dict[str, Time]) -> None:
+    def set_output_port_DSTAT(self, output_port_to_sta: Dict[str, Time]) -> None:
         for input_port in self.input_port_connectors.values():
             for output_port in input_port.upstream_ports:
                 if output_port.name in output_port_to_sta.keys():
-                    output_port.set_ENT(output_port_to_sta[output_port.name])
-            input_port.update_safe_to_advance_time()
+                    output_port.set_DSTAT(output_port_to_sta[output_port.name])
+            input_port.update_safe_to_advance_to()
 
     def update_STAT(self) -> None:
-        min_safe_to_advance_time = forever
+        min_safe_to_advance_to = forever
         for input_port in self.input_port_connectors.values():
-            min_safe_to_advance_time = min(
-                min_safe_to_advance_time, input_port.safe_to_advance_time
+            min_safe_to_advance_to = min(
+                min_safe_to_advance_to, input_port.safe_to_advance_to
             )
         self.logger.debug(
-            f"STAT updated: {self.node_name} {self.STAT} -> {min_safe_to_advance_time}"
+            f"STAT updated: {self.node_name} {self.STAT} -> {min_safe_to_advance_to}"
         )
-        self.STAT = min_safe_to_advance_time
+        self.STAT = min_safe_to_advance_to
 
     def drain_message_queue(self) -> None:
         while True:
@@ -205,12 +205,12 @@ class NodeRuntime:
                     )
                 input_port = self.input_port_connectors[message.to_port]
                 input_port.active_upstream_count -= 1
-                # Set upstream port ENT to forever so STAT can advance
+                # Set upstream port DSTAT to forever so STAT can advance
                 from_output_port = input_port.get_upstream_port_by_name(
                     message.from_port
                 )
-                from_output_port.safe_to_advance_time = forever
-                input_port.update_safe_to_advance_time()
+                from_output_port.safe_to_advance_to = forever
+                input_port.update_safe_to_advance_to()
                 self.logger.debug(
                     f"Received NoMoreMessage from {message.from_port}, "
                     f"active_upstream_count={input_port.active_upstream_count}"
@@ -224,18 +224,18 @@ class NodeRuntime:
                     )
                 input_port = self.input_port_connectors[message.to_port]
 
-                # Update ENT on upstream output port
-                if message.ENT is not None:
+                # Update DSTAT on upstream output port
+                if message.DSTAT is not None:
                     from_output_port_name = message.from_port
                     if from_output_port_name is not None:
                         from_output_port = input_port.get_upstream_port_by_name(
                             from_output_port_name
                         )
-                        from_output_port.safe_to_advance_time = max(
-                            from_output_port.safe_to_advance_time,
-                            message.ENT,
+                        from_output_port.safe_to_advance_to = max(
+                            from_output_port.safe_to_advance_to,
+                            message.DSTAT,
                         )
-                        input_port.update_safe_to_advance_time()
+                        input_port.update_safe_to_advance_to()
 
                 # Insert into event queue
                 if message.timestamp is not None:
@@ -299,7 +299,7 @@ class NodeRuntime:
                 # Recompute STAT after processing each event
                 self.update_STAT()
 
-                # Send ENT updates to affected output ports
+                # Send DSTAT updates to affected output ports
                 ent = min(self.STAT, self.event_queue.peek_data_time())
                 for output_port in affected_output_ports:
                     output_port._set_value(None, None, ent)

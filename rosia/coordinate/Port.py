@@ -42,22 +42,22 @@ class OutputPortRuntimeObj(Generic[T]):
     def __set__(self, value: T) -> None:
         raise TypeError("OutputPortRuntimeObj is immutable")
 
-    def set_ENT(self, first_timestamp: Time) -> None:
-        self.output_port_connector.set_ENT(first_timestamp)
+    def set_DSTAT(self, first_timestamp: Time) -> None:
+        self.output_port_connector.set_DSTAT(first_timestamp)
 
     def __call__(
         self,
         value: T,
         timestamp: Optional[Time] = None,
-        ENT: Optional[Time] = None,
+        DSTAT: Optional[Time] = None,
     ) -> None:
         if timestamp is not None:
-            if ENT is None:
-                raise ValueError("ENT must be provided if timestamp is provided")
-            if timestamp > ENT:
-                raise ValueError(f"Timestamp {timestamp} is greater than ENT {ENT}")
+            if DSTAT is None:
+                raise ValueError("DSTAT must be provided if timestamp is provided")
+            if timestamp > DSTAT:
+                raise ValueError(f"Timestamp {timestamp} is greater than DSTAT {DSTAT}")
         else:
-            assert ENT is None, "If timestamp is not provided, ENT must be None"
+            assert DSTAT is None, "If timestamp is not provided, DSTAT must be None"
         # Drain and process messages (needed for nodes that send from start())
         self.node_runtime.drain_message_queue()
         self.node_runtime.update_STAT()
@@ -65,7 +65,7 @@ class OutputPortRuntimeObj(Generic[T]):
             sys.exit(0)
         if timestamp is None:
             timestamp = self.node_runtime.logical_time
-            ENT = min(
+            DSTAT = min(
                 self.node_runtime.STAT, self.node_runtime.event_queue.peek_data_time()
             )
-        self.output_port_connector._set_value(value, timestamp, ENT)
+        self.output_port_connector._set_value(value, timestamp, DSTAT)
