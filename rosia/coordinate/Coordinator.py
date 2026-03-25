@@ -199,5 +199,11 @@ class Coordinator:
                     timestamp=shutdown_timestamp,
                 )
             )
+        # Wait for all child processes to finish so they can flush output
+        # and release resources cleanly before the main process exits.
+        for name, node_info in self.node_infos.items():
+            if node_info.executor is not None:
+                node_info.executor.join()
+
         if status_code != 0:
             sys.exit(status_code)

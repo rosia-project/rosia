@@ -22,6 +22,7 @@ from rosia.coordinate.messages.base import (
     NoMoreMessage,
 )
 from rosia.coordinate.Events import InputPortEvent, ShutdownEvent, EventQueue
+from rosia.coordinate.Reaction import ReactionQueue
 from rosia.time import s
 import inspect
 from rosia.time.utils import get_physical_time
@@ -63,6 +64,7 @@ class NodeRuntime:
         self.logical_time: Time = Time(0)
         self.STAT: Time = forever
         self.shutdown_requested: bool = False
+        self.reaction_queue: ReactionQueue = ReactionQueue()
 
         for name, value in self.node_cls.__dict__.items():
             if isinstance(value, OutputPort):
@@ -248,7 +250,15 @@ class NodeRuntime:
                 )
 
     def advance_logical_time(self, to_time: Time) -> None:
-        while self.event_queue and self.event_queue.peek_time() < to_time:
+        while True:
+            # Drain pending reactions before advancing to a new event
+            if self.reaction_queue.has_pending():
+                self._execute_next_reaction()
+
+            # Execute the next event if within range
+            if not self.event_queue or self.event_queue.peek_time() >= to_time:
+                break
+
             event = self.event_queue.pop()
             self.logical_time = event.timestamp
 
@@ -261,48 +271,43 @@ class NodeRuntime:
                 for port, payload in event.input_port_values.items():
                     port.set_value_from_event(payload)
 
-                # Collect and trigger reactions
+                # Collect reactions and enqueue them
                 trigger_functions = set()
-                affected_output_ports: List[OutputPortConnector[Any]] = []
                 for port in event.input_port_values:
                     trigger_functions.update(port.trigger_functions)
-                    affected_output_ports.extend(port.affected_output_ports)
 
-                for trigger_function in trigger_functions:
-                    try:
-                        self.logger.set_logical_time(self.logical_time)
-                        self.logger.set_physical_time(
-                            get_physical_time() - self.start_logical_time
+                for func in trigger_functions:
+                    self.reaction_queue.enqueue(func, event.timestamp)
+
+    def _execute_next_reaction(self) -> None:
+        """Dequeue and run one reaction, setting logical_time to its timestamp."""
+        pending = self.reaction_queue.dequeue()
+        if pending is None:
+            return
+        func, timestamp = pending
+        self.logical_time = timestamp
+
+        try:
+            self.logger.set_logical_time(self.logical_time)
+            self.logger.set_physical_time(get_physical_time() - self.start_logical_time)
+            self.logger.debug(f"{func.__name__}()")
+            for input_port in self.input_port_connectors.values():
+                if func in input_port.trigger_functions:
+                    if hasattr(input_port.value, "to_rerun"):
+                        self.logger.rerun(
+                            input_port.value.to_rerun(),  # type: ignore
+                            rerun_subpath=f"{input_port.name}",
                         )
-                        self.logger.debug(f"{trigger_function.__name__}()")
-                        for input_port in self.input_port_connectors.values():
-                            if trigger_function in input_port.trigger_functions:
-                                if hasattr(input_port.value, "to_rerun"):
-                                    self.logger.rerun(
-                                        input_port.value.to_rerun(),  # type: ignore
-                                        rerun_subpath=f"{input_port.name}",
-                                    )
-                                else:
-                                    self.logger.rerun(
-                                        rr.TextLog(
-                                            text=str(input_port.value), level="DEBUG"
-                                        ),
-                                        rerun_subpath=f"{input_port.name}",
-                                    )
-                        trigger_function(self.node_instance)
-                    except Exception as e:
-                        print(f"Exception in trigger function {trigger_function}: {e}")
-                        traceback.print_exc()
-                        self.request_shutdown(0 * s, status_code=1)
-                        return
-
-                # Recompute STAT after processing each event
-                self.update_STAT()
-
-                # Send DSTAT updates to affected output ports
-                ent = min(self.STAT, self.event_queue.peek_data_time())
-                for output_port in affected_output_ports:
-                    output_port._set_value(None, None, ent)
+                    else:
+                        self.logger.rerun(
+                            rr.TextLog(text=str(input_port.value), level="DEBUG"),
+                            rerun_subpath=f"{input_port.name}",
+                        )
+            func(self.node_instance)
+        except Exception as e:
+            print(f"Exception in trigger function {func}: {e}")
+            traceback.print_exc()
+            self.request_shutdown(0 * s, status_code=1)
 
     def advance_time(self, delta: Time) -> None:
         target_time = self.logical_time + delta

@@ -1,7 +1,7 @@
 from rosia.comms.Types import ClientType
 from rosia.comms.transports import Transport
 from rosia.comms.serializers import CloudpickleSerializer as Serializer
-from typing import Any
+from typing import Any, Optional
 import multiprocessing
 
 from rosia.execute.Messages import (
@@ -110,3 +110,7 @@ class ExecutorController:
         self.request_transport.send(
             ExecutorExecuteRequestMessage(func_name=func_name, args=args, kwargs=kwargs)
         )
+
+    def join(self, timeout: Optional[float] = None) -> None:
+        """Wait for the child process to exit."""
+        self.remote_process.join(timeout=timeout)
