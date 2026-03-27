@@ -19,7 +19,7 @@ import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, ms, Time
 from rosia.time.Timer import Timer
@@ -121,7 +121,7 @@ class SyncRenderer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
 
     timer = coor.create_node(Timer(interval=20 * ms, offset=0 * s))
 

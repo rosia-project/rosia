@@ -14,7 +14,7 @@ Expected: both reactions fire at logical_time=0, then time advances.
 """
 
 import rosia
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, advance_time, log
 from rosia.time import s, ms, Time
 
@@ -80,7 +80,7 @@ class Receiver:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     source_a = coor.create_node(SourceA())
     source_b = coor.create_node(SourceB())
     receiver = coor.create_node(Receiver())

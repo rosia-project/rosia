@@ -89,11 +89,11 @@ class SyncRenderer:
 ## Wiring
 
 ```python
-from rosia import Coordinator
+from rosia import Application
 from rosia.time import ms
 from rosia.time.Timer import Timer
 
-coor = Coordinator()
+coor = Application()
 timer = coor.create_node(Timer(interval=20 * ms, offset=0 * s))
 sim1 = coor.create_node(BallSimulator(max_ticks=100))
 sim2 = coor.create_node(BallSimulator(max_ticks=100, slow=True))

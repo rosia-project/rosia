@@ -1,7 +1,7 @@
 import pytest
 import time
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
 from rosia.time import s
 
@@ -34,7 +34,7 @@ class Manager:
 
 @pytest.mark.timeout(30)
 def test_loop():
-    coor = Coordinator()
+    coor = Application()
     worker = coor.create_node(Worker())
     manager = coor.create_node(Manager())
     worker.output_int >>= manager.input_int

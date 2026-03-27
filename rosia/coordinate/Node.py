@@ -18,7 +18,7 @@ import rosia
 from rosia.coordinate.messages.base import (
     MessageBase,
     ShutdownMessage,
-    CoordinatorShutdownRequestMessage,
+    ApplicationShutdownRequestMessage,
     NoMoreMessage,
 )
 from rosia.coordinate.Events import InputPortEvent, ShutdownEvent, EventQueue
@@ -405,7 +405,7 @@ class NodeRuntime:
             f"Requesting shutdown in {delay} at time {shutdown_timestamp}"
         )
         self.coordinator_receiver_transport.send(
-            CoordinatorShutdownRequestMessage(
+            ApplicationShutdownRequestMessage(
                 timestamp=shutdown_timestamp, status_code=status_code
             )
         )

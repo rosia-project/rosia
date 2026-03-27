@@ -10,7 +10,7 @@ When the slow timer fires, Consumer.data should still hold the latest
 value from Producer (not None), since port values are retained.
 """
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, ms, Time
 from rosia.time.Timer import Timer
@@ -52,7 +52,7 @@ class Consumer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     fast_timer = coor.create_node(Timer(interval=10 * ms, offset=0 * s))
     slow_timer = coor.create_node(Timer(interval=30 * ms, offset=0 * s))
     producer = coor.create_node(Producer())

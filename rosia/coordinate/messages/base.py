@@ -25,7 +25,7 @@ class Message(MessageBase[T]):
 
 
 @dataclass
-class CoordinatorShutdownRequestMessage(MessageBase):
+class ApplicationShutdownRequestMessage(MessageBase):
     status_code: int
 
 

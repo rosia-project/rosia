@@ -1,6 +1,6 @@
 import pytest
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
 from rosia.time import Time, ms, s
 from rosia.time.Timer import Timer
@@ -41,7 +41,7 @@ class Printer:
 
 @pytest.mark.timeout(30)
 def test_parallel_timed_interleave():
-    coor = Coordinator()
+    coor = Application()
     timer1 = coor.create_node(Timer(interval=10 * ms, offset=0 * ms))
     timer2 = coor.create_node(Timer(interval=10 * ms, offset=1 * ms))
     int_gen1 = coor.create_node(IntGenerator())

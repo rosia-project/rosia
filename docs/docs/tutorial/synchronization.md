@@ -18,7 +18,7 @@ Two independent timers drive two generators. Both feed into a single `Printer` n
 ## Nodes
 
 ```python
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, Time
 from rosia.time.Timer import Timer
@@ -60,7 +60,7 @@ class Printer:
 Both timers use the same interval and offset, so they fire at the same logical times.
 
 ```python
-coor = Coordinator()
+coor = Application()
 timer1 = coor.create_node(Timer(interval=1 * s, offset=0 * s))
 timer2 = coor.create_node(Timer(interval=1 * s, offset=0 * s))
 gen1 = coor.create_node(IntGenerator())

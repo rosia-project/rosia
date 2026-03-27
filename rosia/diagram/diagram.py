@@ -29,7 +29,7 @@ from rosia.frontend.Annotators import analyze_output_ports
 import rosia
 
 if TYPE_CHECKING:
-    from rosia.coordinate.Coordinator import NodeRuntimeInfo
+    from rosia.coordinate.Application import NodeRuntimeInfo
 
 
 @dataclass

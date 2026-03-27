@@ -17,7 +17,7 @@ Each node transforms the data and passes it to the next.
 ## Nodes
 
 ```python
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, Time
 from rosia.time.Timer import Timer
@@ -61,7 +61,7 @@ class Printer:
 ## Wiring
 
 ```python
-coor = Coordinator()
+coor = Application()
 timer = coor.create_node(Timer(interval=1 * s, offset=0 * s))
 gen = coor.create_node(IntGenerator())
 doubler = coor.create_node(Doubler())

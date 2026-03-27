@@ -117,7 +117,7 @@ import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, ms, Time
 from rosia.time.Timer import Timer
@@ -172,7 +172,7 @@ class Renderer:
         log.info(f"ball {self.ball.position}")
 
 
-coor = Coordinator()
+coor = Application()
 timer = coor.create_node(Timer(interval=20 * ms, offset=0 * s))
 sim = coor.create_node(BallSimulator())
 renderer = coor.create_node(Renderer())

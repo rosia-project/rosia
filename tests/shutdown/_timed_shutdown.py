@@ -12,7 +12,7 @@ All nodes log their progress so the test can verify completion.
 import time
 import random
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, ms, Time
 from rosia.time.Timer import Timer
@@ -53,7 +53,7 @@ class Sink:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     timer = coor.create_node(Timer(interval=10 * ms, offset=0 * s))
     producer1 = coor.create_node(Producer(name="P1", max_ticks=10))
     producer2 = coor.create_node(Producer(name="P2", max_ticks=10, slow=True))

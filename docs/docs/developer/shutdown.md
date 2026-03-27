@@ -58,7 +58,7 @@ request_shutdown(delay=0 * s)
 ```
 Node                        Coordinator                     All Nodes
  │                               │                               │
- │  CoordinatorShutdownRequest   │                               │
+ │  ApplicationShutdownRequest   │                               │
  │  (timestamp, status_code)     │                               │
  │──────────────────────────────>│                               │
  │                               │       ShutdownMessage         │
@@ -71,14 +71,14 @@ Node                        Coordinator                     All Nodes
 
 #### 1. Node requests shutdown
 
-When `request_shutdown(delay)` is called, the node computes `shutdown_timestamp = logical_time + delay` and sends a `CoordinatorShutdownRequestMessage` to the coordinator. The node does **not** shut down immediately — it continues
+When `request_shutdown(delay)` is called, the node computes `shutdown_timestamp = logical_time + delay` and sends a `ApplicationShutdownRequestMessage` to the coordinator. The node does **not** shut down immediately — it continues
 processing events.
 
 #### 2. Coordinator broadcasts
 
 The coordinator waits for a shutdown request from any node. Upon receiving one, it sends a `ShutdownMessage` with the shutdown timestamp to **every** node (including the one that requested it).
 
-If a `timeout` was passed to `Coordinator.execute(timeout=...)`, the coordinator will automatically initiate shutdown when the timeout expires, without waiting for a node to request it.
+If a `timeout` was passed to `Application.execute(timeout=...)`, the coordinator will automatically initiate shutdown when the timeout expires, without waiting for a node to request it.
 
 #### 3. Nodes receive and process
 

@@ -44,7 +44,7 @@ With the `@reaction` decorator, every time the input port `self.input_int` recei
 To connect the two nodes, use a coordinator and create nodes within the coordinator. Connect ports using the `>>=` operator. Each node is a separate process for true concurrency. 
 
 ```python
-coor = Coordinator()
+coor = Application()
 int_gen = coor.create_node(IntGenerator())
 printer = coor.create_node(Printer())
 int_gen.output_int >>= printer.input_int
@@ -86,7 +86,7 @@ class Printer:
 We can create two instances of `IntGenerator` in a coordinator:
 
 ```python
-coor = Coordinator(logging.INFO)
+coor = Application(logging.INFO)
 timer1 = coor.create_node(Timer(interval=1 * ms, offset=0 * s))
 timer2 = coor.create_node(Timer(interval=1 * ms, offset=0 * s))
 int_gen1 = coor.create_node(IntGenerator())

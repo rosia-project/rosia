@@ -43,10 +43,10 @@ There are four stages in a Rosia node's lifecycle. Lifecycles between nodes are 
 
 ## Coordination
 
-Nodes can communicate with each other via `InputPort` and `OutputPort`. To do so, first setup a group of nodes coordinated by the `Coordinator`, then connect output ports to input ports using the `>>=` operator.
+Nodes can communicate with each other via `InputPort` and `OutputPort`. To do so, first setup a group of nodes coordinated by the `Application`, then connect output ports to input ports using the `>>=` operator.
 
 ```python
-coor = Coordinator()
+coor = Application()
 node1 = coor.create_node(Node())
 node2 = coor.create_node(Node())
 node1.output_port_1 >>= node2.input_port_1

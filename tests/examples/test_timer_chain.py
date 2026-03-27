@@ -1,6 +1,6 @@
 import pytest
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
 from rosia.time import Time, s
 from rosia.time.Timer import Timer
@@ -36,7 +36,7 @@ class Printer:
 
 @pytest.mark.timeout(30)
 def test_timer_chain():
-    coor = Coordinator()
+    coor = Application()
     timer_node = coor.create_node(Timer(interval=1 * s, offset=0 * s))
     int_generator = coor.create_node(IntGenerator())
     printer = coor.create_node(Printer())

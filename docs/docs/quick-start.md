@@ -29,7 +29,7 @@ Requires `python>=3.9`.
 A Rosia application is a graph of **nodes** connected by **ports**. Each node reacts to messages on its input ports and sends messages on its output ports.
 
 ```python
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, Time
 from rosia.time.Timer import Timer
@@ -60,7 +60,7 @@ class Printer:
         log.info(f"Got: {self.value}")
 
 
-coor = Coordinator()
+coor = Application()
 timer = coor.create_node(Timer(interval=1 * s, offset=0 * s))
 counter = coor.create_node(Counter())
 printer = coor.create_node(Printer())
@@ -100,7 +100,7 @@ python app.py
 | `self.port(value)`   | Sends a value on an output port.                                |
 | `self.port`          | Reads the current value of an input port.                       |
 | `>>=`                | Connects an output port to an input port.                       |
-| `Coordinator`        | Creates nodes, wires ports, and runs the application.           |
+| `Application`        | Creates nodes, wires ports, and runs the application.           |
 | `Timer`              | Built-in node that fires at a regular interval.                 |
 | `request_shutdown()` | Initiates coordinated shutdown of all nodes.                    |
 

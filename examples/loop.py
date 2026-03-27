@@ -10,7 +10,7 @@ the value reaches 5, at which point Worker requests shutdown.
 Demonstrates bidirectional connections forming a feedback loop.
 """
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s
 
@@ -43,7 +43,7 @@ class Manager:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     worker = coor.create_node(Worker())
     manager = coor.create_node(Manager())
     worker.output_int >>= manager.input_int

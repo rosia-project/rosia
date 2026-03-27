@@ -11,7 +11,7 @@ This tutorial builds the simplest possible Rosia application: one node sends a m
 A Rosia node is a Python class decorated with `@Node`. Ports are declared as class attributes.
 
 ```python
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import log
 
 
@@ -41,10 +41,10 @@ class Printer:
 
 ## Wire and Run
 
-Create a `Coordinator`, instantiate nodes, connect ports with `>>=`, and call `execute()`. Connections are automatically type checked.
+Create a `Application`, instantiate nodes, connect ports with `>>=`, and call `execute()`. Connections are automatically type checked.
 
 ```python
-coor = Coordinator()
+coor = Application()
 greeter = coor.create_node(Greeter())
 printer = coor.create_node(Printer())
 greeter.output >>= printer.message

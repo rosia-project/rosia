@@ -9,7 +9,7 @@ from rosia.coordinate.messages.base import ShutdownMessage
 from rosia.execute import ExecutorController
 from dataclasses import dataclass
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
-from rosia.coordinate.messages.base import CoordinatorShutdownRequestMessage
+from rosia.coordinate.messages.base import ApplicationShutdownRequestMessage
 import logging
 import sys
 from rosia.time.utils import get_physical_time
@@ -27,13 +27,13 @@ class NodeRuntimeInfo:
     executor: Optional[ExecutorController]
 
 
-class Coordinator:
+class Application:
     def __init__(self) -> None:
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
         self.coordinator_receiver_transport = Transport(ClientType.RECEIVER, Serializer)
         self.logger = Logger(self.__class__.__name__)
-        self.logger.debug("Coordinator created")
+        self.logger.debug("Application created")
 
     def create_node(self, node_cls: T) -> T:
         rosia_annotations = get_rosia_annotations(node_cls)
@@ -173,8 +173,8 @@ class Coordinator:
         else:
             message = self.coordinator_receiver_transport.receive()
             self.logger.debug(f"Received shutdown request: {message}")
-            if not isinstance(message, CoordinatorShutdownRequestMessage):
-                raise ValueError("Expected CoordinatorShutdownRequestMessage")
+            if not isinstance(message, ApplicationShutdownRequestMessage):
+                raise ValueError("Expected ApplicationShutdownRequestMessage")
             shutdown_timestamp = message.timestamp
             status_code = message.status_code
         # Drain any additional shutdown requests that arrived

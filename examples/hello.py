@@ -1,4 +1,4 @@
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import log
 
 
@@ -20,7 +20,7 @@ class Printer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     greeter = coor.create_node(Greeter())
     printer = coor.create_node(Printer())
     greeter.output >>= printer.message

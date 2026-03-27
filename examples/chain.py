@@ -1,4 +1,4 @@
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
 from rosia.time import s
 from rosia import log
@@ -46,7 +46,7 @@ class Printer:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     timer = coor.create_node(Timer(interval=1 * s, offset=0 * s))
     int_gen = coor.create_node(IntGenerator())
     doubler = coor.create_node(Doubler())

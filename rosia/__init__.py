@@ -4,7 +4,7 @@ from rosia.frontend import (
     InputPort as InputPort,
     OutputPort as OutputPort,
 )
-from rosia.coordinate import Coordinator as Coordinator
+from rosia.coordinate import Application as Application
 from rosia.coordinate import request_shutdown as request_shutdown
 from rosia.coordinate import advance_time as advance_time
 from rosia.rerun import RerunManager as RerunManager

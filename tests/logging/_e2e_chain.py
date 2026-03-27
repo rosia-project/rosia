@@ -1,4 +1,4 @@
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s, Timer, Time
 
@@ -30,7 +30,7 @@ class Sink:
 
 
 if __name__ == "__main__":
-    coor = Coordinator()
+    coor = Application()
     timer = coor.create_node(Timer(interval=1 * s, offset=0 * s))
     src = coor.create_node(Source())
     sink = coor.create_node(Sink())

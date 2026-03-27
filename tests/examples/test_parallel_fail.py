@@ -1,6 +1,6 @@
 import pytest
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
 from rosia.time import s
 from rosia import log
@@ -40,7 +40,7 @@ class Printer:
 @pytest.mark.xfail(raises=SystemExit, strict=True)
 @pytest.mark.timeout(30)
 def test_parallel():
-    coor = Coordinator()
+    coor = Application()
     int_gen1 = coor.create_node(IntGenerator())
     int_gen2 = coor.create_node(IntGenerator())
     printer = coor.create_node(Printer())

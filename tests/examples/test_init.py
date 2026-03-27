@@ -1,7 +1,7 @@
 import pytest
 import time
 
-from rosia import InputPort, OutputPort, reaction, Node, Coordinator
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
 from rosia.time import s
 
@@ -34,7 +34,7 @@ class Printer:
 
 @pytest.mark.timeout(30)
 def test_init():
-    coor = Coordinator()
+    coor = Application()
     str_gen = coor.create_node(StringGenerator(multiplier=2))
     printer = coor.create_node(Printer())
     str_gen.output_str >>= printer.input_str

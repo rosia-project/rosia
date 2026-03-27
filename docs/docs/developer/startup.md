@@ -8,7 +8,7 @@ There are two stages in rosia's coordinated startup: initialization and startup.
 
 ## Initialization
 
-The initialization stage is orchestrated by the `Coordinator.execute()` method. It sets up all nodes before execution begins. No inter-node communication happens during this stage. The steps are:
+The initialization stage is orchestrated by the `Application.execute()` method. It sets up all nodes before execution begins. No inter-node communication happens during this stage. The steps are:
 
 1. **Remote Node Setup**: For each node, the executor calls `init_remote()`, which sets up a ZeroMQ PULL endpoint for receiving messages. The endpoint is stored for later use by other nodes.
 
