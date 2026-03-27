@@ -1,0 +1,7 @@
+services:
+  benchmark:
+    build:
+      context: ..
+      dockerfile: benchmark/ros2.dockerfile
+    volumes:
+      - ./results:/results
