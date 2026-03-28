@@ -84,7 +84,7 @@ const config: Config = {
       title: "Rosia",
       logo: {
         alt: "Rosia Logo",
-        src: "img/logo.svg",
+        src: "img/rosia.png",
       },
       items: [
         {
