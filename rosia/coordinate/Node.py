@@ -291,11 +291,9 @@ class NodeRuntime:
         self.logical_time = timestamp
 
         try:
+            self.logger.set_logical_time(self.logical_time)
+            self.logger.set_physical_time(get_physical_time() - self.start_logical_time)
             if self.logger._level <= self.logger.DEBUG or self.execution_config.trace:
-                self.logger.set_logical_time(self.logical_time)
-                self.logger.set_physical_time(
-                    get_physical_time() - self.start_logical_time
-                )
                 self.logger.debug(f"{func.__name__}()")
             if self.execution_config.trace:
                 for input_port in self.input_port_connectors.values():
