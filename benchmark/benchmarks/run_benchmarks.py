@@ -93,6 +93,9 @@ def main():
     header = f"{'Size':>10}"
     for framework in all_results:
         header += f" | {framework:>12}"
+    has_both = "rosia" in all_results and "rclpy" in all_results
+    if has_both:
+        header += f" | {'% faster':>12}"
     print(header)
     print("-" * len(header))
     for size in ARRAY_SIZES:
@@ -103,7 +106,31 @@ def main():
                 row += f" | {np.median(times) * 1000:>10.3f}ms"
             else:
                 row += f" | {'N/A':>12}"
+        if has_both:
+            rosia_times = all_results["rosia"].get(str(size), [])
+            rclpy_times = all_results["rclpy"].get(str(size), [])
+            if rosia_times and rclpy_times:
+                rosia_median = np.median(rosia_times)
+                rclpy_median = np.median(rclpy_times)
+                pct_faster = (rclpy_median - rosia_median) / rclpy_median * 100
+                row += f" | {pct_faster:>+10.1f}%"
+            else:
+                row += f" | {'N/A':>12}"
         print(row)
+
+    if has_both:
+        pct_values = []
+        for size in ARRAY_SIZES:
+            rosia_times = all_results["rosia"].get(str(size), [])
+            rclpy_times = all_results["rclpy"].get(str(size), [])
+            if rosia_times and rclpy_times:
+                rosia_median = np.median(rosia_times)
+                rclpy_median = np.median(rclpy_times)
+                pct_values.append((rclpy_median - rosia_median) / rclpy_median * 100)
+        if pct_values:
+            avg_pct = np.mean(pct_values)
+            print("-" * len(header))
+            print(f"On average, rosia is {avg_pct:.1f}% faster than rclpy")
 
 
 def format_bytes(n_bytes: float) -> str:

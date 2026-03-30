@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2197" height="798" viewBox="0 0 2197 798">
+  <defs>
+    <clipPath id="node-clip-0"><rect x="186.0" y="210.0" width="717.0" height="258.0" rx="24.0" ry="24.0"/></clipPath>
+    <clipPath id="node-clip-1"><rect x="1203.0" y="210.0" width="799.5" height="258.0" rx="24.0" ry="24.0"/></clipPath>
+  </defs>
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+  <!-- Sender_0 -->
+  <rect x="186.0" y="210.0" width="717.0" height="258.0" rx="24.0" ry="24.0" fill="#F0F0F0" stroke="#888888" stroke-width="6"/>
+  <rect x="192.0" y="216.0" width="705.0" height="96.0" fill="#E4E4E4" clip-path="url(#node-clip-0)"/>
+  <line x1="192.0" y1="312.0" x2="897.0" y2="312.0" stroke="#C0C0C0" stroke-width="3"/>
+  <text x="544.5" y="269.7" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="bold" fill="#2A2A2A">Sender_0</text>
+  <polygon points="179.7,372.0 179.7,414.0 200.7,393.0" fill="#2A2A2A"/><text x="210.0" y="393.0" text-anchor="start" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="33" fill="#3A3A3A">result_in</text>
+  <polygon points="888.3,372.0 888.3,414.0 909.3,393.0" fill="#2A2A2A"/><text x="879.0" y="393.0" text-anchor="end" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="33" fill="#3A3A3A">data_out</text>
+  <polygon points="460.5,357.0 645.0,357.0 666.0,393.0 645.0,429.0 460.5,429.0 439.5,393.0" fill="#6E6E6E" stroke="#555555"/><text x="552.75" y="404.55" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="33" fill="#FFFFFF">on_result</text>
+  <line x1="370.5" y1="393.0" x2="439.5" y2="393.0" stroke="#B0B0B0" stroke-width="3"/>
+  <line x1="666.0" y1="393.0" x2="735.0" y2="393.0" stroke="#B0B0B0" stroke-width="3"/>
+  <!-- Multiplier_1 -->
+  <rect x="1203.0" y="210.0" width="799.5" height="258.0" rx="24.0" ry="24.0" fill="#F0F0F0" stroke="#888888" stroke-width="6"/>
+  <rect x="1209.0" y="216.0" width="787.5" height="96.0" fill="#E4E4E4" clip-path="url(#node-clip-1)"/>
+  <line x1="1209.0" y1="312.0" x2="1996.5" y2="312.0" stroke="#C0C0C0" stroke-width="3"/>
+  <text x="1602.75" y="269.7" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="bold" fill="#2A2A2A">Multiplier_1</text>
+  <polygon points="1196.7,372.0 1196.7,414.0 1217.7,393.0" fill="#2A2A2A"/><text x="1227.0" y="393.0" text-anchor="start" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="33" fill="#3A3A3A">input_data</text>
+  <polygon points="1987.8,372.0 1987.8,414.0 2008.8,393.0" fill="#2A2A2A"/><text x="1978.5" y="393.0" text-anchor="end" dominant-baseline="middle" font-family="Helvetica, Arial, sans-serif" font-size="33" fill="#3A3A3A">output_result</text>
+  <polygon points="1494.0,357.0 1662.0,357.0 1683.0,393.0 1662.0,429.0 1494.0,429.0 1473.0,393.0" fill="#6E6E6E" stroke="#555555"/><text x="1578.0" y="404.55" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="33" fill="#FFFFFF">multiply</text>
+  <line x1="1404.0" y1="393.0" x2="1473.0" y2="393.0" stroke="#B0B0B0" stroke-width="3"/>
+  <line x1="1683.0" y1="393.0" x2="1752.0" y2="393.0" stroke="#B0B0B0" stroke-width="3"/>
+  <path d="M903.0,393.0 L1203.0,393.0" fill="none" stroke="#505050" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="1203.0,393.0 1173.0,403.5 1173.0,382.5" fill="#505050"/>
+  <path d="M2002.5,393.0 L2029.5,393.0 A18,18 0 0 1 2047.5,411.0 L2047.5,570.0 A18,18 0 0 1 2029.5,588.0 L159.0,588.0 A18,18 0 0 1 141.0,570.0 L141.0,411.0 A18,18 0 0 1 159.0,393.0 L186.0,393.0" fill="none" stroke="#505050" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="186.0,393.0 156.0,403.5 156.0,382.5" fill="#505050"/>
+</svg>

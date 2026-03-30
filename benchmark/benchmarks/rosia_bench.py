@@ -55,7 +55,9 @@ class Sender:
 
     def start(self):
         self.current_array = np.random.rand(self.array_sizes[0]).astype(np.float64)
-        self.send_request()
+        if not self.warmup:
+            self.t0 = time.perf_counter()
+        self.data_out((self.current_array, self.multiplier_value))
 
     @reaction([result_in])
     def on_result(self):
@@ -64,7 +66,9 @@ class Sender:
             if self.iteration >= self.warmup_steps:
                 self.warmup = False
                 self.iteration = 0
-            self.send_request()
+            if not self.warmup:
+                self.t0 = time.perf_counter()
+            self.data_out((self.current_array, self.multiplier_value))
             return
 
         elapsed = time.perf_counter() - self.t0
@@ -89,9 +93,6 @@ class Sender:
             self.iteration = 0
             self.times = []
 
-        self.send_request()
-
-    def send_request(self):
         if not self.warmup:
             self.t0 = time.perf_counter()
         self.data_out((self.current_array, self.multiplier_value))

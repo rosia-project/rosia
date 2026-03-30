@@ -13,7 +13,7 @@ const FeatureList: FeatureItem[] = [
   {
     title: "Performant",
     image: "/img/features/performant.png",
-    description: <>Rosia has more than 2x lower latency compared to ROS2. It also features true concurrency without being blocked by Python's Global Interpreter Lock.</>,
+    description: <>Rosia has more than 60% lower latency compared to ROS2.</>,
   },
   {
     title: "Reproducible",
@@ -23,7 +23,7 @@ const FeatureList: FeatureItem[] = [
   {
     title: "Component-based",
     image: "/img/features/python.png",
-    description: <>Rosia is component-based with ports and connections, allowing you to easily isolate and reuse code.</>,
+    description: <>Rosia is syntax is built on python classes with ports and connections, allowing you to easily isolate and reuse code.</>,
   },
 ];
 
