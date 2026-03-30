@@ -21,12 +21,13 @@ import rerun.blueprint as rrb
 
 from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
+from rosia.config import RerunConfig
 from rosia.time import s, ms, Time
 from rosia.time.Timer import Timer
 
 
 class BallState:
-    """Position + velocity of the ball, streamable to rerun."""
+    """Position + velocity of the ball."""
 
     def __init__(
         self,
@@ -37,13 +38,6 @@ class BallState:
         self.position = position  # (3,)
         self.velocity = velocity  # (3,)
         self.color = color
-
-    def to_rerun(self) -> rr.Points3D:
-        return rr.Points3D(
-            [self.position],
-            radii=[0.3],
-            colors=[self.color],
-        )
 
     def __repr__(self) -> str:
         x, y, z = self.position
@@ -90,7 +84,7 @@ class BallSimulator:
         if self.position[2] <= 0.0:
             self.position[2] = -self.position[2]
             self.velocity[2] = -self.velocity[2] * self.restitution
-        self.output(BallState(self.position.copy(), self.velocity.copy(), self.color))
+        self.output(BallState(self.position, self.velocity, self.color))
         self.tick_count += 1
         if self.tick_count >= self.max_ticks and not self.slow:
             request_shutdown(0 * s)
@@ -116,7 +110,16 @@ class Renderer:
 
     @reaction([input_state])
     def render(self):
-        log.info(f"ball {self.input_state}")
+        state = self.input_state
+        log.info(f"ball {state}")
+        log.rerun(
+            rr.Points3D(
+                [state.position],
+                radii=[0.3],
+                colors=[state.color],
+            ),
+            rerun_subpath="ball",
+        )
 
 
 if __name__ == "__main__":
@@ -139,12 +142,10 @@ if __name__ == "__main__":
     sim1.output >>= renderer1.input_state
     sim2.output >>= renderer2.input_state
 
-    app.diagram()
-    rr.send_blueprint(
-        rrb.Blueprint(
-            rrb.Horizontal(
-                rrb.Spatial3DView(origin="/"),
-            )
+    app.diagram(save_to="bouncing_ball_diagram.png")
+
+    app.execute(
+        rerun_config=RerunConfig(
+            blueprint=rrb.Blueprint(rrb.Horizontal(rrb.Spatial3DView(origin="/")))
         )
     )
-    app.execute(trace=True, log_level="DEBUG")

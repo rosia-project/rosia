@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from rerun._baseclasses import AsComponents, DescribedComponentBatch
 
 from typing import TYPE_CHECKING
+from typing import Optional
 
 if TYPE_CHECKING:
     from rosia.config import RerunConfig
@@ -34,6 +35,7 @@ class Logger:
         self._level = logging.INFO
         self._console: Console | None = None
         self._trace = False
+        self._rerun_manager: Optional[RerunManager] = None
         self.logical_time = Time(0)
         self.physical_time = Time(0)
 
@@ -49,11 +51,12 @@ class Logger:
     def set_physical_time(self, physical_time: Time) -> None:
         self.physical_time = physical_time
 
-    def set_trace(self, trace: bool, rerun_config: "RerunConfig") -> None:
+    def set_trace(self, trace: bool) -> None:
         self._trace = trace
-        if self._trace:
-            self._rerun_manager = RerunManager()
-            self._rerun_manager.init(rerun_config)
+
+    def set_rerun_config(self, rerun_config: "RerunConfig") -> None:
+        self._rerun_manager = RerunManager()
+        self._rerun_manager.init(rerun_config)
 
     def _log(self, level: int, msg: str, rerun_subpath: str = "") -> None:
         if self._level <= level:
@@ -61,7 +64,7 @@ class Logger:
             self.console.print(
                 f"[{style}]\\[{self._name}] {msg}[/{style}]", highlight=False
             )
-        if self._trace:
+        if self._trace and self._rerun_manager is not None:
             self._rerun_manager.log(
                 f"trace/{self._name}/{rerun_subpath}",
                 rr.TextLog(text=str(msg), level="DEBUG"),
@@ -74,7 +77,7 @@ class Logger:
         msg: AsComponents | Iterable[DescribedComponentBatch],
         rerun_subpath: str = "",
     ) -> None:
-        if self._trace:
+        if self._rerun_manager is not None:
             self._rerun_manager.log(
                 f"/logs/{self._name}/{rerun_subpath}",
                 msg,

@@ -52,21 +52,25 @@ class Application:
 
     def diagram(
         self,
-        rerun_config: RerunConfig = RerunConfig(),
+        rerun_config: Optional[RerunConfig] = None,
         save_to: Optional[str] = None,
-        rerun: bool = False,
         save_json: bool = False,
     ) -> None:
         self.logger.debug("Render diagram")
-        if rerun:
+        if rerun_config is not None:
             rosia.rerun_manager.init(rerun_config)
-        diagram(self.node_infos, save_to=save_to, rerun=rerun, save_json=save_json)
+        diagram(
+            self.node_infos,
+            save_to=save_to,
+            rerun=rerun_config is not None,
+            save_json=save_json,
+        )
 
     def execute(
         self,
         trace: bool = False,
         log_level: str = "INFO",
-        rerun_config: RerunConfig = RerunConfig(),
+        rerun_config: Optional[RerunConfig] = None,
         timeout: Optional[float] = None,
     ) -> None:
         if log_level.upper() not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
@@ -77,7 +81,9 @@ class Application:
         execution_config = ExecutionConfig(trace=trace, log_level=log_level_int)
         self.execution_config = execution_config
         self.logger.set_level(execution_config.log_level)
-        self.logger.set_trace(execution_config.trace, rerun_config)
+        self.logger.set_trace(execution_config.trace)
+        if rerun_config is not None:
+            self.logger.set_rerun_config(rerun_config)
         self.logger.debug(f"Start execution with config: {execution_config}")
         self.logger.debug("Setting up remote nodes and initializing input endpoints...")
         # Setup remote nodes and initialize input endpoints

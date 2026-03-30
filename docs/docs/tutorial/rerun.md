@@ -6,130 +6,87 @@ sidebar_position: 5
 
 Rosia integrates with [Rerun](https://rerun.io/) for visualizing node data over time. Rerun provides an interactive viewer that plots data against both logical and physical time.
 
-## Enabling Tracing
-
-Pass `trace=True` to `app.execute()` to enable Rerun logging. This opens the Rerun viewer automatically.
-
-```python
-app.execute(trace=True)
-```
-
-When tracing is enabled:
-
-- All input port values are automatically logged to Rerun on each reaction.
-- Text log messages from `log.info(...)`, `log.debug(...)`, etc. appear in the Rerun timeline.
-- Data is indexed by both **logical time** and **physical time**, so you can scrub through the timeline in either mode.
-
-## Node Diagram
-
-Call `app.diagram()` before `execute()` to render the node graph in Rerun. This shows the topology of your application — nodes, ports, and connections.
-
-```python
-app.diagram()
-app.execute(trace=True)
-```
-
-## Automatic Port Logging
-
-When tracing is enabled, Rosia automatically logs every input port value on each reaction. If the value is a plain type (int, str, etc.), it is logged as a `TextLog`. If the value has a `to_rerun()` method, Rosia calls it and logs the
-result as a Rerun component.
-
-### The `to_rerun()` method
-
-Define `to_rerun()` on your data class to control how it appears in the Rerun viewer:
-
-```python
-import numpy as np
-import rerun as rr
-
-
-class BallState:
-    def __init__(self, position: np.ndarray, color: list[int]):
-        self.position = position
-        self.color = color
-
-    def to_rerun(self) -> rr.Points3D:
-        return rr.Points3D(
-            [self.position],
-            radii=[0.3],
-            colors=[self.color],
-        )
-```
-
-When a node receives a `BallState` on an input port, Rosia calls `ball_state.to_rerun()` and logs the resulting `rr.Points3D` to Rerun. This appears as a 3D point in the spatial viewer.
-
-You can return any Rerun archetype — `rr.Points3D`, `rr.Image`, `rr.LineStrips3D`, `rr.TextLog`, etc.
-
-## Manual Logging with `log.rerun()`
-
-Use `log.rerun()` to log arbitrary Rerun data from within a node:
+## Logging with `log.rerun()`
 
 ```python
 from rosia import log
 import rerun as rr
-
-
-@Node
-class Renderer:
-    input_state = InputPort[BallState]()
-
-    def start(self):
-        # Log static geometry (ground plane)
-        lines = [[[0, 0, 0], [10, 0, 0]], [[0, 0, 0], [0, 10, 0]]]
-        log.rerun(
-            rr.LineStrips3D(lines, colors=[[200, 200, 200]]),
-            rerun_subpath="ground",
-        )
-
-    @reaction([input_state])
-    def render(self):
-        log.info(f"ball {self.input_state}")
 ```
 
-- `log.rerun(archetype, rerun_subpath="...")` logs a Rerun component. The `rerun_subpath` controls where it appears in the Rerun entity tree.
-- `log.info(...)`, `log.warning(...)`, etc. also appear in Rerun as text logs when tracing is enabled.
-
-## Custom Rerun Blueprints
-
-Use Rerun's blueprint API to configure the viewer layout:
+Use `log.rerun()` to log any Rerun archetype from within a node:
 
 ```python
-import rerun as rr
-import rerun.blueprint as rrb
-
-app.diagram()
-rr.send_blueprint(
-    rrb.Blueprint(
-        rrb.Horizontal(
-            rrb.Spatial3DView(origin="/"),
-        )
-    )
-)
-app.execute(trace=True)
+log.rerun(archetype, rerun_subpath="...")
 ```
 
-## Full Example
+- `archetype` — any Rerun component (`rr.Points3D`, `rr.LineStrips3D`, `rr.Image`, `rr.TextLog`, etc.).
+- `rerun_subpath` — controls where it appears in the Rerun entity tree.
 
-Here is a complete example — a bouncing ball simulation with Rerun visualization:
+Data is indexed by both **logical time** and **physical time**, so you can scrub through the timeline in either mode.
+
+## Enabling Rerun
+
+Pass a `RerunConfig` to `app.execute()` to enable Rerun logging:
+
+```python
+from rosia.config import RerunConfig
+
+app.execute(rerun_config=RerunConfig())
+```
+
+Optionally, pass a Rerun blueprint to configure the viewer layout:
+
+```python
+import rerun.blueprint as rrb
+
+app.execute(
+    rerun_config=RerunConfig(
+        blueprint=rrb.Blueprint(rrb.Spatial3DView(origin="/"))
+    )
+)
+```
+
+## Enabling Tracing
+
+Pass `trace=True` to `app.execute()` to enable automatic tracing. When tracing is enabled:
+
+- All input port values are automatically logged to Rerun on each reaction.
+- Text log messages from `log.info(...)`, `log.debug(...)`, etc. appear in the Rerun timeline.
+
+```python
+app.execute(trace=True, rerun_config=RerunConfig())
+```
+
+## Full Example: Bouncing Ball
+
+This example simulates two bouncing balls and visualizes them with Rerun.
+
+### Pipeline
+
+![Bouncing Ball Diagram](imgs/bouncing_ball_diagram.png)
+
+### Data
 
 ```python
 import numpy as np
 import rerun as rr
-import rerun.blueprint as rrb
-
-from rosia import InputPort, OutputPort, reaction, Node, Application
-from rosia import request_shutdown, log
-from rosia.time import s, ms, Time
-from rosia.time.Timer import Timer
-
 
 class BallState:
-    def __init__(self, position: np.ndarray, velocity: np.ndarray):
+    def __init__(self, position: np.ndarray, velocity: np.ndarray, color: list[int]):
         self.position = position
         self.velocity = velocity
+        self.color = color
+```
 
-    def to_rerun(self) -> rr.Points3D:
-        return rr.Points3D([self.position], radii=[0.3], colors=[[255, 100, 50]])
+### Nodes
+
+```python
+from rosia import InputPort, OutputPort, reaction, Node, Application
+from rosia import request_shutdown, log
+from rosia.config import RerunConfig
+from rosia.time import s, ms, Time
+from rosia.time.Timer import Timer
+import rerun.blueprint as rrb
 
 
 @Node
@@ -137,56 +94,83 @@ class BallSimulator:
     tick = InputPort[Time]()
     output = OutputPort[BallState]()
 
-    def __init__(self):
-        self.position = np.array([0.0, 0.0, 5.0])
-        self.velocity = np.array([2.0, 1.5, 0.0])
+    def __init__(self, initial_position, initial_velocity, gravity=-9.81,
+                 restitution=0.85, dt=0.02, max_ticks=100, color=[255, 100, 50]):
+        self.position = np.array(initial_position, dtype=float)
+        self.velocity = np.array(initial_velocity, dtype=float)
+        self.gravity = gravity
+        self.restitution = restitution
+        self.dt = dt
+        self.max_ticks = max_ticks
         self.tick_count = 0
+        self.color = color
 
     @reaction([tick])
     def step(self):
-        dt = 0.02
-        self.velocity[2] += -9.81 * dt
-        self.position += self.velocity * dt
+        self.velocity[2] += self.gravity * self.dt
+        self.position += self.velocity * self.dt
         if self.position[2] <= 0.0:
             self.position[2] = -self.position[2]
-            self.velocity[2] *= -0.85
-        self.output(BallState(self.position.copy(), self.velocity.copy()))
+            self.velocity[2] = -self.velocity[2] * self.restitution
+        self.output(BallState(self.position, self.velocity, self.color))
         self.tick_count += 1
-        if self.tick_count >= 100:
+        if self.tick_count >= self.max_ticks:
             request_shutdown(0 * s)
 
 
 @Node
 class Renderer:
-    ball = InputPort[BallState]()
+    input_state = InputPort[BallState]()
 
     def start(self):
+        # Log static ground plane grid
         lines = []
-        for i in range(-5, 16):
+        for i in np.linspace(-5, 15, 21):
             lines.append([[i, -5, 0], [i, 15, 0]])
             lines.append([[-5, i, 0], [15, i, 0]])
-        log.rerun(rr.LineStrips3D(lines, colors=[[200, 200, 200]]), rerun_subpath="ground")
+        log.rerun(
+            rr.LineStrips3D(lines, colors=[[200, 200, 200]]),
+            rerun_subpath="ground",
+        )
 
-    @reaction([ball])
+    @reaction([input_state])
     def render(self):
-        log.info(f"ball {self.ball.position}")
+        state = self.input_state
+        log.info(f"ball {state}")
+        log.rerun(
+            rr.Points3D(
+                [state.position],
+                radii=[0.3],
+                colors=[state.color],
+            ),
+            rerun_subpath="ball",
+        )
+```
 
+### Wiring
 
+```python
 app = Application()
 timer = app.create_node(Timer(interval=20 * ms, offset=0 * s))
-sim = app.create_node(BallSimulator())
-renderer = app.create_node(Renderer())
-timer.output_timer >>= sim.tick
-sim.output >>= renderer.ball
+sim1 = app.create_node(BallSimulator(initial_position=(0, 0, 5), initial_velocity=(2, 1.5, 0), color=[255, 100, 50]))
+sim2 = app.create_node(BallSimulator(initial_position=(0, 3, 5), initial_velocity=(2, 1.5, 0), color=[50, 150, 255]))
+renderer1 = app.create_node(Renderer())
+renderer2 = app.create_node(Renderer())
 
-app.diagram()
-rr.send_blueprint(rrb.Blueprint(rrb.Spatial3DView(origin="/")))
-app.execute(trace=True)
+timer.output_timer >>= sim1.tick
+timer.output_timer >>= sim2.tick
+sim1.output >>= renderer1.input_state
+sim2.output >>= renderer2.input_state
+
+app.execute(
+    rerun_config=RerunConfig(
+        blueprint=rrb.Blueprint(rrb.Horizontal(rrb.Spatial3DView(origin="/")))
+    )
+)
 ```
 
 Run this and the Rerun viewer opens with:
 
-- A 3D view showing the ball bouncing on a grid
+- A 3D view showing two balls bouncing on a grid
 - A timeline scrubber indexed by logical time and physical time
 - Text logs from each node
-- The node topology diagram

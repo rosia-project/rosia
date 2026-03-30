@@ -113,12 +113,14 @@ class NodeRuntime:
         self.event_queue = EventQueue(self.logger)
 
     def init_remote(
-        self, execution_config: ExecutionConfig, rerun_config: RerunConfig
+        self, execution_config: ExecutionConfig, rerun_config: Optional[RerunConfig]
     ) -> Dict[str, str]:
         self.execution_config = execution_config
         rosia.logger.set_target(self.logger)  # type: ignore # overwrite the global logger
         self.logger.set_level(execution_config.log_level)
-        self.logger.set_trace(trace=execution_config.trace, rerun_config=rerun_config)
+        self.logger.set_trace(trace=execution_config.trace)
+        if rerun_config is not None:
+            self.logger.set_rerun_config(rerun_config)
         self.transport = self.transport_cls(ClientType.RECEIVER, self.serializer_cls)
         for _, input_port in self.input_port_connectors.items():
             input_port.port_type = ClientType.RECEIVER
