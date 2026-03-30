@@ -1,7 +1,6 @@
-from rosia import InputPort, OutputPort, reaction, Node, Application
-from rosia import request_shutdown
-from rosia.time import Time, s
-from rosia.time.Timer import Timer
+from rosia import InputPort, OutputPort, reaction, Node, Application, request_shutdown
+from rosia import log
+from rosia.time import Timer, Time, s
 
 
 @Node
@@ -31,10 +30,9 @@ class Printer:
         assert self.input_int1 == self.input_int2, (
             "Input ports should have the same value"
         )
-        print(f"Received message: {self.input_int1} {self.input_int2}")
+        log.info(f"Received: {self.input_int1} {self.input_int2}")
         self.receive_count += 1
         if self.receive_count >= 3:
-            print("Shutting down")
             request_shutdown(0 * s)
 
 
@@ -45,9 +43,11 @@ if __name__ == "__main__":
     int_gen1 = app.create_node(IntGenerator())
     int_gen2 = app.create_node(IntGenerator())
     printer = app.create_node(Printer())
+
     timer1.output_timer >>= int_gen1.timer
     timer2.output_timer >>= int_gen2.timer
     int_gen1.output >>= printer.input_int1
     int_gen2.output >>= printer.input_int2
-    app.diagram()
-    app.execute(trace=True)
+
+    app.diagram(save_to="synchronization_diagram.png")
+    app.execute()
