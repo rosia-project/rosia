@@ -23,6 +23,9 @@ class Executor:
     def send_response(self, message: ExecutorMessage):
         self.send_response_transport.send(message)
 
+    def wait_for_request(self):
+        self.receive_request_transport.wait_for_message()
+
     def call(self, func_name: str, *args, **kwargs):
         try:
             method = getattr(self.cls, func_name)
@@ -41,7 +44,8 @@ def ExecutorProcess(cls: Any, response_endpoint: str):
         )
     )
     while True:
-        request_message = executor.receive_request_transport.receive_blocking()
+        executor.wait_for_request()
+        request_message = executor.receive_request_transport.receive()
         if (
             not isinstance(request_message, ExecutorExecuteRequestMessage)
             or request_message.error_message is not None
@@ -74,7 +78,8 @@ class ExecutorController:
             args=(serialized_cls, self.response_transport.endpoint),
         )
         self.remote_process.start()
-        response_message = self.response_transport.receive_blocking()
+        self.response_transport.wait_for_message()
+        response_message = self.response_transport.receive()
         if (
             not isinstance(response_message, ExecutorStartupMessage)
             or response_message.error_message is not None
@@ -92,7 +97,8 @@ class ExecutorController:
         self.request_transport.send(
             ExecutorExecuteRequestMessage(func_name=func_name, args=args, kwargs=kwargs)
         )
-        response_message = self.response_transport.receive_blocking()
+        self.response_transport.wait_for_message()
+        response_message = self.response_transport.receive()
         if (
             not isinstance(response_message, ExecutorExecuteResponseMessage)
             or response_message.error_message is not None
