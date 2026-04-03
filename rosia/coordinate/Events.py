@@ -3,7 +3,6 @@ from functools import total_ordering
 from typing import Any, Dict, List, TYPE_CHECKING
 import heapq
 from rosia.time import Time, forever
-from rosia.logging import Logger
 
 if TYPE_CHECKING:
     from rosia.frontend.Connection import InputPortConnector
@@ -51,9 +50,8 @@ class EventQueue:
     Uses a heap for ordered extraction and a dict index for O(1) merge lookups.
     """
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(self) -> None:
         self._heap: List[Event] = []
-        self._logger = logger
         self._input_events: Dict[Time, InputPortEvent] = {}
 
     def push_input_port_event(

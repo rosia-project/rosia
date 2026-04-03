@@ -110,7 +110,7 @@ class NodeRuntime:
         )  # Replace the record_init_args function with empty_function
         self.node_instance = self.node_cls()
         self.logger = Logger(self.node_name)
-        self.event_queue = EventQueue(self.logger)
+        self.event_queue = EventQueue()
 
     def init_remote(
         self, execution_config: ExecutionConfig, rerun_config: Optional[RerunConfig]
@@ -184,9 +184,8 @@ class NodeRuntime:
             min_safe_to_advance_to = min(
                 min_safe_to_advance_to, input_port.safe_to_advance_to
             )
-        self.logger.debug(
-            f"STAT updated: {self.node_name} {self.STAT} -> {min_safe_to_advance_to}"
-        )
+        if self.logger._trace and self.STAT != min_safe_to_advance_to:
+            self.logger.debug(f"STAT: {self.STAT} -> {min_safe_to_advance_to}")
         self.STAT = min_safe_to_advance_to
 
     def drain_message_queue(self) -> None:
@@ -215,10 +214,11 @@ class NodeRuntime:
                 )
                 from_output_port.safe_to_advance_to = forever
                 input_port.update_safe_to_advance_to()
-                self.logger.debug(
-                    f"Received NoMoreMessage from {message.from_port}, "
-                    f"active_upstream_count={input_port.active_upstream_count}"
-                )
+                if self.logger._trace:
+                    self.logger.debug(
+                        f"Received NoMoreMessage from {message.from_port}, "
+                        f"active_upstream_count={input_port.active_upstream_count}"
+                    )
             elif isinstance(message, Message):
                 if message.to_port is None:
                     raise ValueError(f"Message missing to_port field: {message}")
@@ -253,8 +253,8 @@ class NodeRuntime:
 
     def advance_logical_time(self, to_time: Time) -> None:
         while True:
-            # Drain pending reactions before advancing to a new event
-            if self.reaction_queue.has_pending():
+            # Drain ALL pending reactions before advancing to a new event
+            while self.reaction_queue.has_pending():
                 self._execute_next_reaction()
 
             # Execute the next event if within range
@@ -292,19 +292,20 @@ class NodeRuntime:
         try:
             self.logger.set_logical_time(self.logical_time)
             self.logger.set_physical_time(get_physical_time() - self.start_logical_time)
-            self.logger.debug(f"{func.__name__}()")
-            for input_port in self.input_port_connectors.values():
-                if func in input_port.trigger_functions:
-                    if hasattr(input_port.value, "to_rerun"):
-                        self.logger.rerun(
-                            input_port.value.to_rerun(),  # type: ignore
-                            rerun_subpath=f"{input_port.name}",
-                        )
-                    else:
-                        self.logger.rerun(
-                            rr.TextLog(text=str(input_port.value), level="DEBUG"),
-                            rerun_subpath=f"{input_port.name}",
-                        )
+            if self.logger._trace:
+                self.logger.debug(f"{func.__name__}()")
+                for input_port in self.input_port_connectors.values():
+                    if func in input_port.trigger_functions:
+                        if hasattr(input_port.value, "to_rerun"):
+                            self.logger.rerun(
+                                input_port.value.to_rerun(),  # type: ignore
+                                rerun_subpath=f"{input_port.name}",
+                            )
+                        else:
+                            self.logger.rerun(
+                                rr.TextLog(text=str(input_port.value), level="DEBUG"),
+                                rerun_subpath=f"{input_port.name}",
+                            )
             func(self.node_instance)
         except Exception as e:
             print(f"Exception in trigger function {func}: {e}")
@@ -352,7 +353,6 @@ class NodeRuntime:
         while not self.shutdown_requested:
             self.drain_message_queue()
             self.update_STAT()
-            self.logger.debug("Event loop processing messages")
 
             if self.event_queue and self.event_queue.peek_time() < self.STAT:
                 self.advance_logical_time(to_time=self.STAT)
