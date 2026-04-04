@@ -1,5 +1,4 @@
 from typing import Any, Generic, Optional, TypeVar, TYPE_CHECKING
-import sys
 
 from rosia.time import Time
 
@@ -48,24 +47,13 @@ class OutputPortRuntimeObj(Generic[T]):
     def __call__(
         self,
         value: T,
-        timestamp: Optional[Time] = None,
         DSTAT: Optional[Time] = None,
     ) -> None:
-        if timestamp is not None:
-            if DSTAT is None:
-                raise ValueError("DSTAT must be provided if timestamp is provided")
-            if timestamp > DSTAT:
-                raise ValueError(f"Timestamp {timestamp} is greater than DSTAT {DSTAT}")
-        else:
-            assert DSTAT is None, "If timestamp is not provided, DSTAT must be None"
-        # Drain and process messages (needed for nodes that send from start())
-        self.node_runtime.drain_message_queue()
-        self.node_runtime.update_STAT()
-        if self.node_runtime.shutdown_requested:
-            sys.exit(0)
-        if timestamp is None:
-            timestamp = self.node_runtime.logical_time
+        timestamp = self.node_runtime.logical_time
+        if DSTAT is None:
             DSTAT = min(
                 self.node_runtime.STAT, self.node_runtime.event_queue.peek_data_time()
             )
+        if timestamp > DSTAT:
+            raise ValueError(f"Timestamp {timestamp} is greater than DSTAT {DSTAT}")
         self.output_port_connector._set_value(value, timestamp, DSTAT)

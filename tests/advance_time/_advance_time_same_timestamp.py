@@ -15,7 +15,7 @@ Expected: both reactions fire at logical_time=0, then time advances.
 
 import rosia
 from rosia import InputPort, OutputPort, reaction, Node, Application
-from rosia import request_shutdown, advance_time, log
+from rosia import request_shutdown, log
 from rosia.time import s, ms, Time
 
 
@@ -29,7 +29,7 @@ class SourceA:
     def start(self):
         t = Time(0)
         dt = 200 * ms
-        self.out(1, timestamp=t, DSTAT=t + dt)
+        self.out(1, DSTAT=t + dt)
 
 
 @Node
@@ -42,7 +42,7 @@ class SourceB:
     def start(self):
         t = Time(0)
         dt = 200 * ms
-        self.out(2, timestamp=t, DSTAT=t + dt)
+        self.out(2, DSTAT=t + dt)
 
 
 @Node
@@ -70,11 +70,11 @@ class Receiver:
             log.warning("REACT_B_TIME_OK")
         else:
             log.warning(f"REACT_B_TIME_WRONG expected=0 got={t}")
-        # advance_time is called here — all remaining T=0 reactions
+        # yield advances time — all remaining T=0 reactions
         # must fire BEFORE time advances past T=0
-        advance_time(100 * ms)
+        yield 100 * ms
         log.warning(
-            f"REACT_B advance_time returned, logical_time={rosia.node_runtime_instance.logical_time}"
+            f"REACT_B yield returned, logical_time={rosia.node_runtime_instance.logical_time}"
         )
         request_shutdown(0 * s)
 

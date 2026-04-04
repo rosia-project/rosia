@@ -28,6 +28,14 @@ class Event:
 
 
 @dataclass
+class YieldCompleteEvent(Event):
+    """Fires when a generator's yielded time delta has elapsed."""
+
+    priority: int = -1  # higher priority than InputPortEvent
+    generator: Any = None
+
+
+@dataclass
 class InputPortEvent(Event):
     priority: int = 0
     input_port_values: Dict["InputPortConnector[Any]", Any] = field(
@@ -72,6 +80,11 @@ class EventQueue:
         )
         self._input_events[timestamp] = event
         heapq.heappush(self._heap, event)
+
+    def push_yield_complete_event(self, timestamp: Time, generator: Any) -> None:
+        heapq.heappush(
+            self._heap, YieldCompleteEvent(timestamp=timestamp, generator=generator)
+        )
 
     def push_shutdown_event(self, timestamp: Time, status_code: int = 0) -> None:
         heapq.heappush(

@@ -34,11 +34,10 @@ class ZMQTransport(TransportBase):
         self.socket.send(self.serializer.serialize(msg))
 
     def receive(self) -> Any:
-        """Receive all available messages from the transport. Blocks until a message is available."""
-        assert self.type == ClientType.RECEIVER, "Cannot receive on a sender socket."
-        if self.socket.poll(0, zmq.POLLIN):
-            return self.serializer.deserialize(self.socket.recv())
-        else:
+        """Non-blocking receive. Returns None if no message available."""
+        try:
+            return self.serializer.deserialize(self.socket.recv(zmq.NOBLOCK))
+        except zmq.Again:
             return None
 
     def wait_for_message(self, timeout: int = -1) -> bool:

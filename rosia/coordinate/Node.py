@@ -21,7 +21,13 @@ from rosia.coordinate.messages.base import (
     ApplicationShutdownRequestMessage,
     NoMoreMessage,
 )
-from rosia.coordinate.Events import InputPortEvent, ShutdownEvent, EventQueue
+from rosia.coordinate.Events import (
+    InputPortEvent,
+    ShutdownEvent,
+    YieldCompleteEvent,
+    EventQueue,
+)
+from rosia.coordinate.Generator import is_generator, resume_generator
 from rosia.coordinate.Reaction import ReactionQueue
 from rosia.time import s
 import inspect
@@ -53,19 +59,31 @@ class NodeRuntime:
         self.node_original_init = rosia_annotations["original_init"]
         self.node_init_args = rosia_annotations["init_args"]
         self.node_name = node_name
+
         self.start_logical_time: Time = Time(0)
         self.serializer_cls: Type[SerializerBase] = serializer_cls
         self.transport_cls: Type[TransportBase] = transport_cls
 
         self.transport: TransportBase
-        self.input_port_connectors: Dict[str, InputPortConnector[Any]] = {}
-        self.output_port_connectors: Dict[str, OutputPortConnector[Any]] = {}
 
         self.logical_time: Time = Time(0)
         self.STAT: Time = forever
-        self.shutdown_requested: bool = False
+        self.shutdown_now: bool = False
+
+        self.event_queue = EventQueue()
         self.reaction_queue: ReactionQueue = ReactionQueue()
 
+        self.init_ports()
+
+        setattr(
+            self.node_cls, "__init__", empty_function
+        )  # Replace the record_init_args function with empty_function
+        self.node_instance = self.node_cls()
+        self.logger = Logger(self.node_name)
+
+    def init_ports(self) -> None:
+        self.input_port_connectors: Dict[str, InputPortConnector[Any]] = {}
+        self.output_port_connectors: Dict[str, OutputPortConnector[Any]] = {}
         for name, value in self.node_cls.__dict__.items():
             if isinstance(value, OutputPort):
                 output_port = OutputPortConnector(
@@ -104,13 +122,6 @@ class NodeRuntime:
 
                 self.__setattr__(name, input_port)
                 setattr(self.node_cls, name, input_port_runtime_object)
-
-        setattr(
-            self.node_cls, "__init__", empty_function
-        )  # Replace the record_init_args function with empty_function
-        self.node_instance = self.node_cls()
-        self.logger = Logger(self.node_name)
-        self.event_queue = EventQueue()
 
     def init_remote(
         self, execution_config: ExecutionConfig, rerun_config: Optional[RerunConfig]
@@ -255,9 +266,44 @@ class NodeRuntime:
         while True:
             # Drain ALL pending reactions before advancing to a new event
             while self.reaction_queue.has_pending():
-                self._execute_next_reaction()
+                pending = self.reaction_queue.dequeue()
+                if pending is None:
+                    return
+                func, timestamp = pending
+                self.logical_time = timestamp
+
+                try:
+                    self.logger.set_logical_time(self.logical_time)
+                    self.logger.set_physical_time(
+                        get_physical_time() - self.start_logical_time
+                    )
+                    if self.logger._trace:
+                        self.logger.debug(f"{func.__name__}()")
+                        for input_port in self.input_port_connectors.values():
+                            if func in input_port.trigger_functions:
+                                if hasattr(input_port.value, "to_rerun"):
+                                    self.logger.rerun(
+                                        input_port.value.to_rerun(),  # type: ignore
+                                        rerun_subpath=f"{input_port.name}",
+                                    )
+                                else:
+                                    self.logger.rerun(
+                                        rr.TextLog(
+                                            text=str(input_port.value), level="DEBUG"
+                                        ),
+                                        rerun_subpath=f"{input_port.name}",
+                                    )
+                    result = func(self.node_instance)
+                    if is_generator(result):
+                        resume_generator(self.logical_time, self.event_queue, result)
+                except Exception as e:
+                    print(f"Exception in trigger function {func}: {e}")
+                    traceback.print_exc()
+                    self.request_shutdown(0 * s, status_code=1)
 
             # Execute the next event if within range
+            # if not self.event_queue:
+            self.drain_message_queue()
             if not self.event_queue or self.event_queue.peek_time() >= to_time:
                 break
 
@@ -265,10 +311,18 @@ class NodeRuntime:
             self.logical_time = event.timestamp
 
             if isinstance(event, ShutdownEvent):
-                self.shutdown_requested = True
+                self.shutdown_now = True
                 return
 
-            if isinstance(event, InputPortEvent):
+            if isinstance(event, YieldCompleteEvent):
+                self.drain_message_queue()
+                if not resume_generator(
+                    self.logical_time, self.event_queue, event.generator
+                ):
+                    if not self.input_port_connectors:
+                        self.send_no_more_messages()
+
+            elif isinstance(event, InputPortEvent):
                 # Set port values
                 for port, payload in event.input_port_values.items():
                     port.set_value_from_event(payload)
@@ -280,62 +334,6 @@ class NodeRuntime:
 
                 for func in trigger_functions:
                     self.reaction_queue.enqueue(func, event.timestamp)
-
-    def _execute_next_reaction(self) -> None:
-        """Dequeue and run one reaction, setting logical_time to its timestamp."""
-        pending = self.reaction_queue.dequeue()
-        if pending is None:
-            return
-        func, timestamp = pending
-        self.logical_time = timestamp
-
-        try:
-            self.logger.set_logical_time(self.logical_time)
-            self.logger.set_physical_time(get_physical_time() - self.start_logical_time)
-            if self.logger._trace:
-                self.logger.debug(f"{func.__name__}()")
-                for input_port in self.input_port_connectors.values():
-                    if func in input_port.trigger_functions:
-                        if hasattr(input_port.value, "to_rerun"):
-                            self.logger.rerun(
-                                input_port.value.to_rerun(),  # type: ignore
-                                rerun_subpath=f"{input_port.name}",
-                            )
-                        else:
-                            self.logger.rerun(
-                                rr.TextLog(text=str(input_port.value), level="DEBUG"),
-                                rerun_subpath=f"{input_port.name}",
-                            )
-            func(self.node_instance)
-        except Exception as e:
-            print(f"Exception in trigger function {func}: {e}")
-            traceback.print_exc()
-            self.request_shutdown(0 * s, status_code=1)
-
-    def advance_time(self, delta: Time) -> None:
-        target_time = self.logical_time + delta
-        while self.logical_time < target_time:
-            if self.shutdown_requested:
-                return
-            self.drain_message_queue()
-            self.update_STAT()
-            if self.STAT > self.logical_time:
-                advance_to = min(target_time, self.STAT)
-                self.advance_logical_time(to_time=advance_to)
-                if self.shutdown_requested:
-                    return
-                if not self.event_queue or self.event_queue.peek_time() >= advance_to:
-                    self.logical_time = advance_to
-            else:
-                self.transport.wait_for_message()
-
-    def _all_upstream_done(self) -> bool:
-        if not self.input_port_connectors:
-            return False  # Source nodes handled separately
-        for input_port in self.input_port_connectors.values():
-            if input_port.active_upstream_count > 0:
-                return False
-        return True
 
     def send_no_more_messages(self) -> None:
         for output_port in self.output_port_connectors.values():
@@ -350,16 +348,26 @@ class NodeRuntime:
                     )
 
     def event_loop(self) -> None:
-        while not self.shutdown_requested:
+        while True:
             self.drain_message_queue()
             self.update_STAT()
 
+            def all_done() -> bool:
+                for input_port in self.input_port_connectors.values():
+                    if input_port.active_upstream_count > 0:
+                        return False
+                if not self.input_port_connectors:
+                    return True  # Source node with no more events (generator finished)
+                return True
+
             if self.event_queue and self.event_queue.peek_time() < self.STAT:
                 self.advance_logical_time(to_time=self.STAT)
-            elif not self.event_queue and self._all_upstream_done():
-                self.send_no_more_messages()
-                self.shutdown_requested = True
-                self.request_shutdown(0 * s, status_code=0)
+                if self.shutdown_now:
+                    return
+            elif not self.event_queue and all_done():
+                if self.input_port_connectors:
+                    self.send_no_more_messages()
+                return
             else:
                 self.transport.wait_for_message()
 
@@ -368,23 +376,25 @@ class NodeRuntime:
         try:
             if hasattr(self.node_instance, "start"):
                 if not inspect.signature(self.node_instance.start).parameters:
-                    self.node_instance.start()
+                    result = self.node_instance.start()
                 elif (
                     "start_logical_time"
                     in inspect.signature(self.node_instance.start).parameters
                 ):
-                    self.node_instance.start(start_logical_time=start_logical_time)
+                    result = self.node_instance.start(
+                        start_logical_time=start_logical_time
+                    )
                 else:
                     raise ValueError(
                         f"Node {self.node_name} has a start method with an unexpected signature: {inspect.signature(self.node_instance.start)}"
                     )
+                if is_generator(result):
+                    resume_generator(self.logical_time, self.event_queue, result)
 
             # Source nodes: if no input ports and no pending events, send NoMoreMessage
             if not self.input_port_connectors and not self.event_queue:
                 self.send_no_more_messages()
-                self.shutdown_requested = True
-
-            if not self.shutdown_requested:
+            else:
                 self.event_loop()
             # Shutdown after loop exits
             if hasattr(self.node_instance, "shutdown"):
