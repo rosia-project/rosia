@@ -45,7 +45,7 @@ class ZMQServer(ServerBase):
         self.endpoint = f"tcp://127.0.0.1:{port}"
         self._running = False
 
-    def register_callback(self, callback: Callable[[Any], Any]):
+    def serve_callback(self, callback: Callable[[Any], Any]):
         assert not self._running, "Server is already running"
         self._running = True
         while self._running:
@@ -73,7 +73,7 @@ if __name__ == "__main__":
             print(f"Server received: {msg}")
             return f"echo: {msg}"
 
-        server_thread = threading.Thread(target=server.register_callback, args=(echo,))
+        server_thread = threading.Thread(target=server.serve_callback, args=(echo,))
         server_thread.start()
 
         reply = asyncio.run(client.request("Hello, ZMQ!"))

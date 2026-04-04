@@ -7,6 +7,7 @@ from rosia.coordinate.Node import NodeRuntime
 from rosia.frontend.Connection import OutputPortConnector
 from rosia.coordinate.messages.base import ShutdownMessage
 from rosia.execute import ExecutorController
+from rosia.execute.Messages import ExecutorExecuteRequestMessage
 from dataclasses import dataclass
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
 from rosia.coordinate.messages.base import ApplicationShutdownRequestMessage
@@ -189,14 +190,13 @@ class Application:
 
         self.logger.debug("Executing nodes...")
         start_physical_time = get_physical_time()
-        await asyncio.gather(
-            *(
-                executor_controller.call_no_ret(
-                    "execute", start_logical_time=start_physical_time
+        for executor_controller in executor_controllers.values():
+            executor_controller.send(
+                ExecutorExecuteRequestMessage(
+                    func_name="execute",
+                    kwargs={"start_logical_time": start_physical_time},
                 )
-                for executor_controller in executor_controllers.values()
             )
-        )
 
         self.logger.debug("Waiting for shutdown request...")
         timeout_ms = int(timeout * 1000) if timeout is not None else -1

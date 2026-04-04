@@ -36,7 +36,7 @@ class ServerBase(ABC):
         self.endpoint: str
 
     @abstractmethod
-    def register_callback(self, callback: Callable[[Any], Any]):
+    def serve_callback(self, callback: Callable[[Any], Any]):
         """Register a callback to be called when a message is received."""
 
     @abstractmethod

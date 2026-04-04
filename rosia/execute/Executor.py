@@ -4,7 +4,6 @@ from rosia.comms.serializers import CloudpickleSerializer as Serializer
 from typing import Any, Optional
 import multiprocessing
 import asyncio
-import threading
 
 from rosia.execute.Messages import (
     ExecutorStartupMessage,
@@ -36,15 +35,6 @@ class Executor:
             return ExecutorExecuteResponseMessage(
                 error_message="Failed to process request: " + str(request_message)
             )
-        if request_message.no_ret:
-            self._no_ret_thread = threading.Thread(
-                target=self.call,
-                args=(request_message.func_name, *request_message.args),
-                kwargs=request_message.kwargs,
-            )
-            self._no_ret_thread.start()
-            self.server._running = False
-            return ExecutorExecuteResponseMessage()
         return self.call(
             request_message.func_name,
             *request_message.args,
@@ -60,11 +50,8 @@ class Executor:
             return ExecutorExecuteResponseMessage(error_message=str(e))
 
     def run(self):
-        self._no_ret_thread: threading.Thread | None = None
-        self.server.register_callback(self.handle_request)
+        self.server.serve_callback(self.handle_request)
         self.server.close()
-        if self._no_ret_thread is not None:
-            self._no_ret_thread.join()
 
 
 def ExecutorProcess(cls: Any, controller_endpoint: str):
@@ -95,7 +82,7 @@ class ExecutorController:
             startup_server._running = False
             return msg
 
-        startup_server.register_callback(handle_startup)
+        startup_server.serve_callback(handle_startup)
         startup_server.close()
         if (
             not isinstance(startup_message, ExecutorStartupMessage)
@@ -122,12 +109,9 @@ class ExecutorController:
             raise RuntimeError("Failed to execute function: " + str(response_message))
         return response_message.result
 
-    async def call_no_ret(self, func_name: str, *args, **kwargs):
-        await self.client.request(
-            ExecutorExecuteRequestMessage(
-                func_name=func_name, args=args, kwargs=kwargs, no_ret=True
-            )
-        )
+    def send(self, msg: ExecutorExecuteRequestMessage) -> None:
+        """Send a request without waiting for a reply. Closes the client after sending."""
+        self.client.socket.send(self.client.serializer.serialize(msg))
         self.client.close()
 
     def join(self, timeout: Optional[float] = None) -> None:
