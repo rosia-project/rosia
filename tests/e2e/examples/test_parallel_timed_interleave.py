@@ -52,3 +52,7 @@ def test_parallel_timed_interleave():
     int_gen1.output >>= printer.input_int1
     int_gen2.output >>= printer.input_int2
     app.execute(timeout=10)
+
+
+if __name__ == "__main__":
+    test_parallel_timed_interleave()

@@ -39,3 +39,7 @@ def test_init():
     printer = app.create_node(Printer())
     str_gen.output_str >>= printer.input_str
     app.execute()
+
+
+if __name__ == "__main__":
+    test_init()

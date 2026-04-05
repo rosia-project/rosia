@@ -43,3 +43,7 @@ def test_timer_chain():
     timer_node.output_timer >>= int_generator.input_port
     int_generator.output_port >>= printer.input_timer
     app.execute(timeout=10)
+
+
+if __name__ == "__main__":
+    test_timer_chain()

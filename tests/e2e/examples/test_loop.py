@@ -40,3 +40,7 @@ def test_loop():
     worker.output_int >>= manager.input_int
     manager.output_int >>= worker.input_int
     app.execute()
+
+
+if __name__ == "__main__":
+    test_loop()

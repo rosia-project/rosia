@@ -1,17 +1,13 @@
-"""Script for advance_time same-timestamp reaction test.
+"""Test: advance_time in a reaction must not affect the logical time of
+subsequent reactions triggered by the same event.
 
-Bug: If advance_time is called inside a reaction, subsequent reactions
-at the same timestamp must fire BEFORE time advances (logical_time
-must be monotonically non-decreasing).
-
-Setup:
-  SourceA sends to port_a, SourceB sends to port_b — both at T=0.
-  Both messages are merged into one InputPortEvent at T=0.
-  react_b calls advance_time(100ms).
-  react_a should also fire at logical_time=T=0, BEFORE time advances.
-
-Expected: both reactions fire at logical_time=0, then time advances.
+When two input ports receive messages at the same logical timestamp, they
+are merged into a single InputPortEvent. All triggered reactions should
+observe logical_time == event.timestamp. If one reaction calls
+advance_time(), the others must still see the original timestamp.
 """
+
+import pytest
 
 import rosia
 from rosia import InputPort, OutputPort, reaction, Node, Application
@@ -51,15 +47,19 @@ class Receiver:
     port_b = InputPort[int]()
 
     def __init__(self):
-        pass
+        self.react_a_time_ok = False
+        self.react_b_time_ok = False
+        self.time_wrong = False
 
     @reaction([port_a])
     def react_a(self):
         t = rosia.node_runtime_instance.logical_time
         log.warning(f"REACT_A fired: port_a={self.port_a} at logical_time={t}")
         if t == Time(0):
+            self.react_a_time_ok = True
             log.warning("REACT_A_TIME_OK")
         else:
+            self.time_wrong = True
             log.warning(f"REACT_A_TIME_WRONG expected=0 got={t}")
 
     @reaction([port_b])
@@ -67,8 +67,10 @@ class Receiver:
         t = rosia.node_runtime_instance.logical_time
         log.warning(f"REACT_B fired: port_b={self.port_b} at logical_time={t}")
         if t == Time(0):
+            self.react_b_time_ok = True
             log.warning("REACT_B_TIME_OK")
         else:
+            self.time_wrong = True
             log.warning(f"REACT_B_TIME_WRONG expected=0 got={t}")
         # yield advances time — all remaining T=0 reactions
         # must fire BEFORE time advances past T=0
@@ -79,11 +81,22 @@ class Receiver:
         request_shutdown(0 * s)
 
 
-if __name__ == "__main__":
+def run(trace: bool = False):
     app = Application()
     source_a = app.create_node(SourceA())
     source_b = app.create_node(SourceB())
     receiver = app.create_node(Receiver())
     source_a.out >>= receiver.port_a
     source_b.out >>= receiver.port_b
-    app.execute(timeout=15)
+    app.execute(timeout=15, trace=trace)
+
+
+@pytest.mark.timeout(30)
+def test_advance_time_same_timestamp_reactions():
+    """Reactions at the same timestamp must all see the correct logical time,
+    even if one of them calls advance_time()."""
+    run()
+
+
+if __name__ == "__main__":
+    run(trace=True)

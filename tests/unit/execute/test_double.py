@@ -27,3 +27,7 @@ def test_double_number_remotely():
     finally:
         controller.remote_process.terminate()
         controller.remote_process.join()
+
+
+if __name__ == "__main__":
+    test_double_number_remotely()

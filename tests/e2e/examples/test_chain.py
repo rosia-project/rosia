@@ -51,3 +51,7 @@ def test_chain():
     int_gen.output >>= doubler.input_port
     doubler.output_port >>= printer.input_int
     app.execute()
+
+
+if __name__ == "__main__":
+    test_chain()

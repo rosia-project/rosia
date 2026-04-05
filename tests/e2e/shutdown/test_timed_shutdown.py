@@ -1,16 +1,17 @@
-"""Script for timed shutdown test.
+"""Shutdown test with the same topology as bouncing_ball example.
 
 Pipeline:
   Timer -> Producer1 -> Sink1
         -> Producer2 (slow) -> Sink2
 
 Producer1 requests shutdown after 10 ticks.
-Producer2 is slow (sleeps per tick).
-All nodes log their progress so the test can verify completion.
+Verifies that all nodes complete all steps before exiting.
 """
 
 import time
 import random
+
+import pytest
 
 from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
@@ -52,7 +53,9 @@ class Sink:
         log.warning(f"{self.name} got {self.input_port}")
 
 
-if __name__ == "__main__":
+@pytest.mark.timeout(30)
+def test_all_steps_complete():
+    """All producers and sinks process every step up to shutdown."""
     app = Application()
     timer = app.create_node(Timer(interval=10 * ms, offset=0 * s))
     producer1 = app.create_node(Producer(name="P1", max_ticks=10))
@@ -64,3 +67,7 @@ if __name__ == "__main__":
     producer1.output >>= sink1.input_port
     producer2.output >>= sink2.input_port
     app.execute(timeout=10)
+
+
+if __name__ == "__main__":
+    test_all_steps_complete()
