@@ -17,7 +17,7 @@ class IntGenerator:
         self.count += 1
         self.output(self.count)
         if self.count >= 5:
-            request_shutdown(0 * s)
+            request_shutdown(1 * s)
 
 
 @Node

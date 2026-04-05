@@ -5,15 +5,21 @@ from rosia.comms.transports import Transport
 from rosia.config import ExecutionConfig
 from rosia.coordinate.Node import NodeRuntime
 from rosia.frontend.Connection import OutputPortConnector
-from rosia.coordinate.messages.base import ShutdownMessage
+from rosia.coordinate.messages.base import (
+    ShutdownMessage,
+    NodeRequestShutdownMessage,
+    ApplicationRequestShutdownMessage,
+    ApplicationShutdownResponseMessage,
+    ExitMessage,
+)
 from rosia.execute import ExecutorController
 from rosia.execute.Messages import ExecutorExecuteRequestMessage
 from dataclasses import dataclass
 from rosia.frontend.Annotators import get_rosia_annotations, check_rosia_annotations
-from rosia.coordinate.messages.base import ApplicationShutdownRequestMessage
 import asyncio
 import logging
 import sys
+from rosia.time import never
 from rosia.time.utils import get_physical_time
 from rosia.diagram import diagram
 from rosia.config import RerunConfig
@@ -73,14 +79,17 @@ class Application:
         rerun_config: Optional[RerunConfig] = None,
         timeout: Optional[float] = None,
     ) -> None:
-        asyncio.run(
-            self._execute(
-                trace=trace,
-                log_level=log_level,
-                rerun_config=rerun_config,
-                timeout=timeout,
+        try:
+            asyncio.run(
+                self._execute(
+                    trace=trace,
+                    log_level=log_level,
+                    rerun_config=rerun_config,
+                    timeout=timeout,
+                )
             )
-        )
+        except KeyboardInterrupt:
+            pass
 
     async def _execute(
         self,
@@ -199,43 +208,126 @@ class Application:
             )
 
         self.logger.debug("Waiting for shutdown request...")
+        alive_nodes = set(self.node_infos.keys())
         timeout_ms = int(timeout * 1000) if timeout is not None else -1
-        has_message = self.coordinator_receiver_transport.wait_for_message(
-            timeout=timeout_ms
-        )
+        shutdown_timestamp = None
+        status_code = 0
+        import signal
+
+        prev_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+        try:
+            has_message = self.coordinator_receiver_transport.wait_for_message(
+                timeout=timeout_ms
+            )
+        except KeyboardInterrupt:
+            has_message = False
+            self.logger.warning("KeyboardInterrupt received, initiating shutdown...")
+        finally:
+            signal.signal(signal.SIGINT, prev_handler)
         if not has_message:
-            self.logger.debug("Timeout reached, initiating shutdown...")
-            shutdown_timestamp = get_physical_time() - start_physical_time
+            shutdown_timestamp = never
             status_code = 0
         else:
-            message = self.coordinator_receiver_transport.receive()
-            self.logger.debug(f"Received shutdown request: {message}")
-            if not isinstance(message, ApplicationShutdownRequestMessage):
-                raise ValueError("Expected ApplicationShutdownRequestMessage")
-            shutdown_timestamp = message.timestamp
-            status_code = message.status_code
-        # Drain any additional shutdown requests that arrived
+            # Drain all pending messages, handling ExitMessages and finding the shutdown request
+            while shutdown_timestamp is None and alive_nodes:
+                message = self.coordinator_receiver_transport.receive()
+                if message is None:
+                    self.coordinator_receiver_transport.wait_for_message()
+                    continue
+                if isinstance(message, ExitMessage):
+                    self.logger.debug(f"Node {message.node_name} exited")
+                    alive_nodes.discard(message.node_name)
+                elif isinstance(message, NodeRequestShutdownMessage):
+                    self.logger.debug(f"Received shutdown request: {message}")
+                    shutdown_timestamp = message.timestamp
+                    status_code = message.status_code
+                else:
+                    self.logger.warning(f"Ignoring unexpected message: {message}")
+        # Drain any additional messages that arrived
         while True:
             extra = self.coordinator_receiver_transport.receive()
             if extra is None:
                 break
-            self.logger.warning(f"Ignoring additional shutdown request: {extra}")
+            if isinstance(extra, ExitMessage):
+                self.logger.debug(f"Node {extra.node_name} exited")
+                alive_nodes.discard(extra.node_name)
+            else:
+                self.logger.warning(f"Ignoring additional message: {extra}")
+
+        # If all nodes exited naturally, no shutdown negotiation needed
+        if not alive_nodes:
+            self.logger.debug(
+                "All nodes exited naturally, skipping shutdown negotiation"
+            )
+            for name, node_info in self.node_infos.items():
+                if node_info.executor is not None:
+                    node_info.executor.join()
+            if status_code != 0:
+                sys.exit(status_code)
+            return
+
         if shutdown_timestamp is None:
             raise ValueError("Shutdown timestamp is None")
         self.logger.set_logical_time(shutdown_timestamp)
         self.logger.set_physical_time(get_physical_time() - start_physical_time)
-        for name, node_info in self.node_infos.items():
-            self.logger.debug(
-                f"Sending shutdown request to node: {name} with timestamp {shutdown_timestamp}"
-            )
-            self.coordinator_sender_transport = Transport(
+
+        # Send ApplicationRequestShutdownMessage to alive nodes only
+        self.logger.debug(
+            f"Sending ApplicationRequestShutdownMessage to alive nodes: {alive_nodes}"
+        )
+        node_sender_transports: Dict[str, Transport] = {}
+        for name in alive_nodes:
+            sender_transport = Transport(
                 ClientType.SENDER, Serializer, self.node_endpoints[name]
             )
-            self.coordinator_sender_transport.send(
-                ShutdownMessage(
-                    timestamp=shutdown_timestamp,
-                )
+            node_sender_transports[name] = sender_transport
+            sender_transport.send(
+                ApplicationRequestShutdownMessage(timestamp=shutdown_timestamp)
             )
+
+        # Collect ApplicationShutdownResponseMessages from alive nodes
+        self.logger.debug("Collecting shutdown responses from alive nodes...")
+        expected_responses = len(alive_nodes)
+        max_shutdown_timestamp = shutdown_timestamp
+        while expected_responses > 0:
+            self.coordinator_receiver_transport.wait_for_message()
+            response = self.coordinator_receiver_transport.receive()
+            if isinstance(response, ExitMessage):
+                self.logger.debug(
+                    f"Node {response.node_name} exited during negotiation"
+                )
+                if response.node_name in alive_nodes:
+                    alive_nodes.discard(response.node_name)
+                    expected_responses -= 1
+                continue
+            if not isinstance(response, ApplicationShutdownResponseMessage):
+                self.logger.warning(
+                    f"Ignoring unexpected message during shutdown negotiation: {response}"
+                )
+                continue
+            if response.timestamp is None:
+                raise ValueError("ApplicationShutdownResponseMessage timestamp is None")
+            max_shutdown_timestamp = max(max_shutdown_timestamp, response.timestamp)
+            expected_responses -= 1
+
+        if max_shutdown_timestamp > shutdown_timestamp:
+            self.logger.warning(
+                f"Actual shutdown time {max_shutdown_timestamp} is beyond the requested shutdown logical time {shutdown_timestamp}"
+            )
+        self.logger.debug(
+            f"Shutdown negotiation complete. Shutdown time: {max_shutdown_timestamp}"
+        )
+
+        # Send ShutdownMessage to alive nodes with the real shutdown time
+        for name in alive_nodes:
+            if name in node_sender_transports:
+                self.logger.debug(
+                    f"Sending shutdown message to node: {name} with timestamp {max_shutdown_timestamp}"
+                )
+                node_sender_transports[name].send(
+                    ShutdownMessage(timestamp=max_shutdown_timestamp)
+                )
+
         # Wait for all child processes to finish so they can flush output
         # and release resources cleanly before the main process exits.
         for name, node_info in self.node_infos.items():

@@ -25,13 +25,28 @@ class Message(MessageBase[T]):
 
 
 @dataclass
-class ApplicationShutdownRequestMessage(MessageBase):
+class NodeRequestShutdownMessage(MessageBase):
     status_code: int
+
+
+@dataclass
+class ApplicationRequestShutdownMessage(MessageBase):
+    pass
+
+
+@dataclass
+class ApplicationShutdownResponseMessage(MessageBase):
+    pass
 
 
 @dataclass
 class ShutdownMessage(MessageBase):
     pass
+
+
+@dataclass
+class ExitMessage(MessageBase):
+    node_name: str
 
 
 @dataclass

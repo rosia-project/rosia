@@ -18,7 +18,10 @@ import rosia
 from rosia.coordinate.messages.base import (
     MessageBase,
     ShutdownMessage,
-    ApplicationShutdownRequestMessage,
+    NodeRequestShutdownMessage,
+    ApplicationRequestShutdownMessage,
+    ApplicationShutdownResponseMessage,
+    ExitMessage,
     NoMoreMessage,
 )
 from rosia.coordinate.Events import (
@@ -68,7 +71,7 @@ class NodeRuntime:
 
         self.logical_time: Time = Time(0)
         self.STAT: Time = forever
-        self.shutdown_now: bool = False
+        self.shutdown_time_barrier: Time = forever
 
         self.event_queue = EventQueue()
         self.reaction_queue: ReactionQueue = ReactionQueue()
@@ -195,6 +198,7 @@ class NodeRuntime:
             min_safe_to_advance_to = min(
                 min_safe_to_advance_to, input_port.safe_to_advance_to
             )
+        min_safe_to_advance_to = min(min_safe_to_advance_to, self.shutdown_time_barrier)
         if self.logger._trace and self.STAT != min_safe_to_advance_to:
             self.logger.debug(f"STAT: {self.STAT} -> {min_safe_to_advance_to}")
         self.STAT = min_safe_to_advance_to
@@ -205,12 +209,28 @@ class NodeRuntime:
             if message is None:
                 break
 
-            if isinstance(message, ShutdownMessage):
+            if isinstance(message, ApplicationRequestShutdownMessage):
+                if message.timestamp is None:
+                    raise ValueError(
+                        "ApplicationRequestShutdownMessage timestamp is None"
+                    )
+                requested_time = message.timestamp
+                if self.logical_time > requested_time:
+                    response_time = self.logical_time
+                else:
+                    response_time = requested_time
+                self.shutdown_time_barrier = response_time + Time(1)
+                self.coordinator_receiver_transport.send(
+                    ApplicationShutdownResponseMessage(timestamp=response_time)
+                )
+            elif isinstance(message, ShutdownMessage):
                 self.logger.debug(
                     f"Received shutdown message to shutdown at time {message.timestamp}"
                 )
                 if message.timestamp is None:
                     raise ValueError("Shutdown message timestamp is None")
+                self.shutdown_time_barrier = message.timestamp + Time(1)
+                self.update_STAT()
                 self.event_queue.push_shutdown_event(message.timestamp)
             elif isinstance(message, NoMoreMessage):
                 if message.to_port not in self.input_port_connectors:
@@ -311,8 +331,10 @@ class NodeRuntime:
             self.logical_time = event.timestamp
 
             if isinstance(event, ShutdownEvent):
-                self.shutdown_now = True
-                return
+                self.logger.debug(f"Shutting down at time {self.logical_time}")
+                if hasattr(self.node_instance, "shutdown"):
+                    self.node_instance.shutdown()
+                sys.exit(0)
 
             if isinstance(event, YieldCompleteEvent):
                 self.drain_message_queue()
@@ -362,8 +384,6 @@ class NodeRuntime:
 
             if self.event_queue and self.event_queue.peek_time() < self.STAT:
                 self.advance_logical_time(to_time=self.STAT)
-                if self.shutdown_now:
-                    return
             elif not self.event_queue and all_done():
                 if self.input_port_connectors:
                     self.send_no_more_messages()
@@ -372,6 +392,9 @@ class NodeRuntime:
                 self.transport.wait_for_message()
 
     def execute(self, start_logical_time: Time) -> None:
+        import signal
+
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         self.start_logical_time = start_logical_time
         try:
             if hasattr(self.node_instance, "start"):
@@ -396,12 +419,11 @@ class NodeRuntime:
                 self.send_no_more_messages()
             else:
                 self.event_loop()
+            # Notify Application that this node has finished all work
+            self.coordinator_receiver_transport.send(
+                ExitMessage(timestamp=None, node_name=self.node_name)
+            )
             # Shutdown after loop exits
-            if hasattr(self.node_instance, "shutdown"):
-                self.node_instance.shutdown()
-            sys.exit(0)
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt received, shutting down")
             if hasattr(self.node_instance, "shutdown"):
                 self.node_instance.shutdown()
             sys.exit(0)
@@ -409,7 +431,6 @@ class NodeRuntime:
             print(f"Exception in {self.node_name}: {e}")
             traceback.print_exc()
             self.request_shutdown(0 * s, status_code=1)
-            sys.exit(1)
 
     def request_shutdown(self, delay: Time = Time(0), status_code: int = 0) -> None:
         shutdown_timestamp = self.logical_time + delay
@@ -417,7 +438,7 @@ class NodeRuntime:
             f"Requesting shutdown in {delay} at time {shutdown_timestamp}"
         )
         self.coordinator_receiver_transport.send(
-            ApplicationShutdownRequestMessage(
+            NodeRequestShutdownMessage(
                 timestamp=shutdown_timestamp, status_code=status_code
             )
         )
