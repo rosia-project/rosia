@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from functools import total_ordering
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 import heapq
 from rosia.time import Time, forever
 
@@ -25,14 +25,6 @@ class Event:
         if not isinstance(other, Event):
             return NotImplemented
         return self.timestamp == other.timestamp and self.priority == other.priority
-
-
-@dataclass
-class YieldCompleteEvent(Event):
-    """Fires when a generator's yielded time delta has elapsed."""
-
-    priority: int = -1  # higher priority than InputPortEvent
-    generator: Any = None
 
 
 @dataclass
@@ -81,11 +73,6 @@ class EventQueue:
         self._input_events[timestamp] = event
         heapq.heappush(self._heap, event)
 
-    def push_yield_complete_event(self, timestamp: Time, generator: Any) -> None:
-        heapq.heappush(
-            self._heap, YieldCompleteEvent(timestamp=timestamp, generator=generator)
-        )
-
     def push_shutdown_event(self, timestamp: Time, status_code: int = 0) -> None:
         heapq.heappush(
             self._heap, ShutdownEvent(timestamp=timestamp, status_code=status_code)
@@ -97,9 +84,9 @@ class EventQueue:
             self._input_events.pop(event.timestamp, None)
         return event
 
-    def peek_time(self) -> Time:
+    def peek_time(self) -> Optional[Time]:
         if not self._heap:
-            return forever
+            return None
         return self._heap[0].timestamp
 
     def peek_data_time(self) -> Time:

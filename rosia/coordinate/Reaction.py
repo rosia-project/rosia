@@ -1,13 +1,53 @@
 """Reaction queue for scheduling and executing triggered reactions."""
 
-from collections import deque
-from typing import Callable, Optional, Tuple
+import heapq
+import inspect
+from typing import Any, Callable, Optional, Generator
 
 from rosia.time import Time
 
 
+class Reaction:
+    def __init__(
+        self,
+        function: Callable[..., Any] | Generator[Time, None, None],
+        timestamp: Time,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self.generator: Optional[Generator[Time, None, None]] = None
+        self.function: Optional[Callable[..., Any]] = None
+        if isinstance(function, Generator):
+            self.generator = function
+        else:
+            self.function = function
+        self.timestamp = timestamp
+        self.args = args
+        self.kwargs = kwargs
+
+    def execute(self) -> Optional["Reaction"]:
+        if self.generator is not None:
+            try:
+                delta = next(self.generator)
+                if not isinstance(delta, Time):
+                    raise TypeError(
+                        f"Expected yield of Time, got {type(delta).__name__}: {delta}"
+                    )
+                target_time = self.timestamp + delta
+                return Reaction(self.generator, target_time)
+            except StopIteration:
+                return None
+        else:
+            assert self.function is not None
+            result = self.function(*self.args, **self.kwargs)
+            if inspect.isgenerator(result):
+                delta = next(result)
+                return Reaction(result, self.timestamp + delta)
+            return None
+
+
 class ReactionQueue:
-    """FIFO queue of pending reactions ready to execute.
+    """Priority queue of pending reactions, ordered by timestamp then FIFO.
 
     When an InputPortEvent is processed, its triggered reactions are
     enqueued here.  ``advance_logical_time`` always drains this queue
@@ -17,15 +57,25 @@ class ReactionQueue:
     """
 
     def __init__(self) -> None:
-        self._queue: deque[Tuple[Callable, Time]] = deque()
+        self._heap: list[tuple[Time, int, Reaction, bool]] = []
+        self._counter: int = 0
 
-    def enqueue(self, function: Callable, timestamp: Time) -> None:
-        self._queue.append((function, timestamp))
+    def enqueue(self, reaction: Reaction, is_shutdown: bool = False) -> None:
+        heapq.heappush(
+            self._heap, (reaction.timestamp, self._counter, reaction, is_shutdown)
+        )
+        self._counter += 1
 
-    def dequeue(self) -> Optional[Tuple[Callable, Time]]:
-        if self._queue:
-            return self._queue.popleft()
+    def dequeue(self) -> tuple[Optional[Reaction], bool]:
+        if self._heap:
+            _, _, reaction, is_shutdown = heapq.heappop(self._heap)
+            return reaction, is_shutdown
+        return None, False
+
+    def peek_time(self) -> Optional[Time]:
+        if self._heap:
+            return self._heap[0][0]
         return None
 
     def has_pending(self) -> bool:
-        return bool(self._queue)
+        return bool(self._heap)

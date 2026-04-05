@@ -8,6 +8,7 @@ from rosia.frontend.Connection import OutputPortConnector
 from rosia.coordinate.messages.base import (
     ShutdownMessage,
     NodeRequestShutdownMessage,
+    NodeForceShutdownRequest,
     ApplicationRequestShutdownMessage,
     ApplicationShutdownResponseMessage,
     ExitMessage,
@@ -51,7 +52,7 @@ class Application:
         node_runtime = NodeRuntime(
             rosia_annotations=rosia_annotations,
             node_name=node_name,
-            coordinator_receiver_endpoint=self.coordinator_receiver_transport.endpoint,
+            coordinator_transport_endpoint=self.coordinator_receiver_transport.endpoint,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         self.logger.debug(f"Create node: {node_name}")
@@ -79,6 +80,8 @@ class Application:
         rerun_config: Optional[RerunConfig] = None,
         timeout: Optional[float] = None,
     ) -> None:
+        if trace:
+            log_level = "DEBUG"
         try:
             asyncio.run(
                 self._execute(
@@ -237,6 +240,11 @@ class Application:
                 if isinstance(message, ExitMessage):
                     self.logger.debug(f"Node {message.node_name} exited")
                     alive_nodes.discard(message.node_name)
+                elif isinstance(message, NodeForceShutdownRequest):
+                    self.logger.debug(f"Received force shutdown request: {message}")
+                    status_code = message.status_code
+                    self._force_shutdown(alive_nodes)
+                    sys.exit(status_code)
                 elif isinstance(message, NodeRequestShutdownMessage):
                     self.logger.debug(f"Received shutdown request: {message}")
                     shutdown_timestamp = message.timestamp
@@ -301,16 +309,24 @@ class Application:
                     expected_responses -= 1
                 continue
             if not isinstance(response, ApplicationShutdownResponseMessage):
-                self.logger.warning(
-                    f"Ignoring unexpected message during shutdown negotiation: {response}"
-                )
+                if isinstance(response, NodeRequestShutdownMessage):
+                    self.logger.warning(
+                        "Duplicate shutdown request received by application"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Ignoring unexpected message during shutdown negotiation: {response}"
+                    )
                 continue
             if response.timestamp is None:
                 raise ValueError("ApplicationShutdownResponseMessage timestamp is None")
             max_shutdown_timestamp = max(max_shutdown_timestamp, response.timestamp)
             expected_responses -= 1
 
-        if max_shutdown_timestamp > shutdown_timestamp:
+        if (
+            shutdown_timestamp is not never
+            and max_shutdown_timestamp > shutdown_timestamp
+        ):
             self.logger.warning(
                 f"Actual shutdown time {max_shutdown_timestamp} is beyond the requested shutdown logical time {shutdown_timestamp}"
             )
@@ -336,3 +352,19 @@ class Application:
 
         if status_code != 0:
             sys.exit(status_code)
+
+    def _force_shutdown(self, alive_nodes: set[str]) -> None:
+        self.logger.debug(
+            f"Force shutdown: sending ShutdownMessage to alive nodes: {alive_nodes}"
+        )
+        for name in alive_nodes:
+            sender_transport = Transport(
+                ClientType.SENDER, Serializer, self.node_endpoints[name]
+            )
+            sender_transport.send(ShutdownMessage(timestamp=never))
+        for name, node_info in self.node_infos.items():
+            if node_info.executor is not None:
+                node_info.executor.join(timeout=2)
+                if node_info.executor.remote_process.is_alive():
+                    self.logger.debug(f"Force killing node {name}")
+                    node_info.executor.remote_process.kill()

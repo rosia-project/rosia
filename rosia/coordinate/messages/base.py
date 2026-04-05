@@ -30,6 +30,11 @@ class NodeRequestShutdownMessage(MessageBase):
 
 
 @dataclass
+class NodeForceShutdownRequest(MessageBase):
+    status_code: int
+
+
+@dataclass
 class ApplicationRequestShutdownMessage(MessageBase):
     pass
 

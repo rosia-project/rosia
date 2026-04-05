@@ -27,7 +27,7 @@ class Worker:
     def forward(self):
         log.info(f"Worker received: {self.input_int}")
         self.output_int(self.input_int)
-        if self.input_int >= 5:
+        if self.input_int == 5:
             request_shutdown(0 * s)
 
 
