@@ -185,7 +185,7 @@ class NodeRuntime:
 
     def set_output_port_DSTAT(self, output_port_to_sta: Dict[str, Time]) -> None:
         for input_port in self.input_port_connectors.values():
-            for output_port in input_port.upstream_ports:
+            for output_port, _is_physical in input_port.upstream_ports:
                 if output_port.name in output_port_to_sta.keys():
                     output_port.set_DSTAT(output_port_to_sta[output_port.name])
             input_port.update_safe_to_advance_to()

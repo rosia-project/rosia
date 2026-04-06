@@ -40,7 +40,9 @@ class InputPortConnector(PortConnector[T]):
         trigger_functions: List[Callable],
         affected_output_ports: "List[OutputPortConnector[T]]",
     ) -> None:
-        self.upstream_ports: List[OutputPortConnector[T]] = []
+        self.upstream_ports: List[
+            Tuple[OutputPortConnector[T], bool]
+        ] = []  # (port, is_physical)
         self.trigger_functions: List[Callable] = trigger_functions
         self.value: Optional[T] = None
         self.owner = owner
@@ -60,14 +62,16 @@ class InputPortConnector(PortConnector[T]):
 
     def update_safe_to_advance_to(self) -> None:
         min_safe_to_advance_to = forever
-        for upstream_port in self.upstream_ports:
+        for upstream_port, is_physical in self.upstream_ports:
+            if is_physical:
+                continue
             min_safe_to_advance_to = min(
                 min_safe_to_advance_to, upstream_port.safe_to_advance_to
             )
         self.safe_to_advance_to = min_safe_to_advance_to
 
     def get_upstream_port_by_name(self, name: str) -> "OutputPortConnector[T]":
-        for upstream_port in self.upstream_ports:
+        for upstream_port, _is_physical in self.upstream_ports:
             if upstream_port.name == name:
                 return upstream_port
         raise ValueError(f"Upstream port {name} not found")
@@ -157,7 +161,7 @@ class OutputPortConnector(PortConnector[T]):
         ) in self.downstream_ports:
             raise ValueError(f"Port {other.name} is already connected to {self.name}")
         self.downstream_ports.append((other, physical))
-        other.upstream_ports.append(self)
+        other.upstream_ports.append((self, physical))
 
     # >> shorthand for connect
     def __rshift__(self, other: InputPortConnector[T]) -> "OutputPortConnector[T]":
