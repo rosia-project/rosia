@@ -2,7 +2,7 @@ import pytest
 
 from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
-from rosia.time import Time, ms, s
+from rosia.time import Time, ns, s
 from rosia.time.Timer import Timer
 
 
@@ -41,8 +41,8 @@ class Printer:
 @pytest.mark.timeout(30)
 def test_parallel_timed():
     app = Application()
-    timer1 = app.create_node(Timer(interval=1 * ms, offset=0 * s))
-    timer2 = app.create_node(Timer(interval=1 * ms, offset=0 * s))
+    timer1 = app.create_node(Timer(interval=1 * ns, offset=0 * s))
+    timer2 = app.create_node(Timer(interval=1 * ns, offset=0 * s))
     int_gen1 = app.create_node(IntGenerator())
     int_gen2 = app.create_node(IntGenerator())
     printer = app.create_node(Printer())
