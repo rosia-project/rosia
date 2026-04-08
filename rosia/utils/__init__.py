@@ -8,3 +8,4 @@ from .ClassHelper import (
     clone_class_detached as clone_class_detached,
 )
 from .ObjectProxy import ObjectProxy as ObjectProxy
+from .ObjectProxy import FunctionProxy as FunctionProxy

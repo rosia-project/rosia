@@ -326,10 +326,7 @@ class Application:
             max_shutdown_timestamp = max(max_shutdown_timestamp, response.timestamp)
             expected_responses -= 1
 
-        if (
-            shutdown_timestamp is not never
-            and max_shutdown_timestamp > shutdown_timestamp
-        ):
+        if shutdown_timestamp != never and max_shutdown_timestamp > shutdown_timestamp:
             self.logger.warning(
                 f"Actual shutdown time {max_shutdown_timestamp} is beyond the requested shutdown logical time {shutdown_timestamp}"
             )

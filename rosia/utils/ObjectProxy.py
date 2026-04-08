@@ -40,3 +40,33 @@ class ObjectProxy(Generic[T]):
 
     def __setattr__(self, name: str, value: object) -> None:
         setattr(object.__getattribute__(self, "_target"), name, value)
+
+
+class FunctionProxy:
+    """A transparent proxy for a callable that can be swapped at runtime.
+
+    Useful for stable module-level function references that need to point at
+    different underlying callables over time (e.g. a function that becomes
+    bound to a node runtime once one exists).
+    """
+
+    def __init__(self, target=None, *, module: str = "", attr: str = "") -> None:
+        object.__setattr__(self, "_target", target)
+        object.__setattr__(self, "_module", module)
+        object.__setattr__(self, "_attr", attr)
+
+    def set_target(self, target) -> None:
+        object.__setattr__(self, "_target", target)
+
+    def __call__(self, *args, **kwargs):
+        target = object.__getattribute__(self, "_target")
+        if target is None:
+            raise RuntimeError("FunctionProxy target is not set")
+        return target(*args, **kwargs)
+
+    def __reduce__(self):
+        module = object.__getattribute__(self, "_module")
+        attr = object.__getattribute__(self, "_attr")
+        if module and attr:
+            return (_resolve_proxy, (module, attr))
+        return (FunctionProxy, (object.__getattribute__(self, "_target"),))

@@ -8,6 +8,10 @@ if TYPE_CHECKING:
     from rosia.frontend.Connection import InputPortConnector
 
 
+class TerminateReactionException(Exception):
+    pass
+
+
 @total_ordering
 @dataclass
 class Event:

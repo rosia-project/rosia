@@ -1,8 +1,15 @@
 import pytest
 
-from rosia import InputPort, OutputPort, reaction, Node, Application
+from rosia import (
+    InputPort,
+    OutputPort,
+    reaction,
+    Node,
+    Application,
+    advance_logical_time,
+)
 from rosia import request_shutdown, log
-from rosia.time import Time, s
+from rosia.time import s
 
 
 @Node
@@ -15,7 +22,7 @@ class Worker:
         log.info(f"Worker received: {self.input_int}")
         self.output_int(self.input_int)
         if self.input_int == 5:
-            request_shutdown(1 * s)
+            request_shutdown()
 
 
 @Node
@@ -24,16 +31,16 @@ class Manager:
     output_int = OutputPort[int]()
 
     def __init__(self):
-        self.output_int.set_DSTAT(Time(0))
+        self.output_int.set_DSTAT(0 * s)
 
     def start(self):
         log.info("Manager starting")
-        self.output_int(0, DSTAT=1 * s)
+        self.output_int(1, DSTAT=1 * s)
 
     @reaction([input_int])
     def forward(self):
         log.info(f"Manager received: {self.input_int}, sending: {self.input_int + 1}")
-        yield 1 * s
+        advance_logical_time(1 * s)
         self.output_int(self.input_int + 1, DSTAT=1 * s)
 
 

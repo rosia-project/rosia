@@ -29,6 +29,7 @@ from rosia.coordinate.Events import (
     InputPortEvent,
     ShutdownEvent,
     EventQueue,
+    TerminateReactionException,
 )
 from rosia.coordinate.Reaction import Reaction, ReactionQueue
 from rosia.time import s, never
@@ -130,6 +131,7 @@ class NodeRuntime:
     ) -> Dict[str, str]:
         self.execution_config = execution_config
         rosia.logger.set_target(self.logger)  # type: ignore # overwrite the global logger
+        rosia.advance_logical_time.set_target(self.advance_logical_time)  # type: ignore # overwrite the global advance_logical_time function
         self.logger.set_level(execution_config.log_level)
         self.logger.set_trace(trace=execution_config.trace)
         if rerun_config is not None:
@@ -217,6 +219,39 @@ class NodeRuntime:
             else:
                 self.transport.wait_for_message()
 
+    def advance_logical_time(self, amount: Time) -> None:
+        """
+        Advances logical time by a given amount without executing reactions or events in between.
+        """
+        assert amount > Time(0), "Amount to advance must be positive"
+        target_time = self.logical_time + amount
+        if target_time > self.shutdown_time_barrier:
+            # This is a natural shutdown. We don't need to enqueue the reaction again.
+            raise TerminateReactionException(
+                "Logical time advanced beyond shutdown time barrier"
+            )
+        if target_time > self.STAT:
+            self.logger.warning(
+                f"Advancing logical time to {target_time} > STAT {self.STAT}. This might cause out-of-order exeuction."
+            )
+        next_reaction_timestamp = self.reaction_queue.peek_time()
+        next_event_timestamp = self.event_queue.peek_time()
+        if (
+            next_reaction_timestamp is not None
+            and next_reaction_timestamp < target_time
+        ):
+            self.logger.warning(
+                f"Advancing logical time to {target_time} > pending reaction at {next_reaction_timestamp}. This will cause out-of-order exeuction."
+            )
+        if next_event_timestamp is not None and next_event_timestamp < target_time:
+            self.logger.warning(
+                f"Advancing logical time to {target_time} > pending event at {next_event_timestamp}. This will cause out-of-order exeuction."
+            )
+
+        self.logical_time = target_time
+        self.logger.set_logical_time(self.logical_time)
+        self.logger.set_physical_time(get_physical_time())
+
     def advance_to_STAT(self) -> None:
         while True:
             self.drain_message_queue()
@@ -236,11 +271,11 @@ class NodeRuntime:
             else:
                 advance_to_time = min(next_event_timestamp, next_reaction_timestamp)
 
-            if advance_to_time > self.STAT:
+            if advance_to_time >= self.STAT:
                 return  # Wait until STAT increases
 
             if advance_to_time < self.logical_time:
-                self.logger.error(
+                self.logger.warning(
                     f"Logical time decrease: {self.logical_time} -> {advance_to_time}"
                 )
 
@@ -251,11 +286,6 @@ class NodeRuntime:
             self.logical_time = advance_to_time
             self.logger.set_logical_time(advance_to_time)
             self.logger.set_physical_time(get_physical_time())
-
-            self.execute_reactions(advance_to_time)
-
-            if advance_to_time >= self.STAT:
-                return  # Wait until STAT increases
 
             while (
                 self.event_queue.peek_time() is not None
@@ -434,10 +464,10 @@ class NodeRuntime:
         )
 
     def startup(self, start_logical_time: Time) -> None:
+        self.logical_time = Time(0)
         if hasattr(self.node_instance, "start"):
             if not inspect.signature(self.node_instance.start).parameters:
                 start_reaction = Reaction(self.node_instance.start, Time(0))
-                self.reaction_queue.enqueue(start_reaction)
             elif (
                 "start_logical_time"
                 in inspect.signature(self.node_instance.start).parameters
@@ -447,11 +477,13 @@ class NodeRuntime:
                     Time(0),
                     start_logical_time=start_logical_time,
                 )
-                self.reaction_queue.enqueue(start_reaction)
             else:
                 raise ValueError(
                     f"Node {self.node_name} has a start method with an unexpected signature: {inspect.signature(self.node_instance.start)}"
                 )
+            result = start_reaction.execute()
+            if result is not None:
+                self.reaction_queue.enqueue(result)
 
     def check_natural_shutdown(self) -> bool:
         def all_done() -> bool:

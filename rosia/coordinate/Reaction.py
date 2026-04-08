@@ -5,6 +5,7 @@ import inspect
 from typing import Any, Callable, Optional, Generator
 
 from rosia.time import Time
+from rosia.coordinate.Events import TerminateReactionException
 
 
 class Reaction:
@@ -37,12 +38,18 @@ class Reaction:
                 return Reaction(self.generator, target_time)
             except StopIteration:
                 return None
+            except TerminateReactionException:
+                # The reaction is terminated normally. We don't need to enqueue it again.
+                return None
         else:
             assert self.function is not None
-            result = self.function(*self.args, **self.kwargs)
-            if inspect.isgenerator(result):
-                delta = next(result)
-                return Reaction(result, self.timestamp + delta)
+            try:
+                result = self.function(*self.args, **self.kwargs)
+                if inspect.isgenerator(result):
+                    delta = next(result)
+                    return Reaction(result, self.timestamp + delta)
+            except TerminateReactionException:
+                return None
             return None
 
 
