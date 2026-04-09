@@ -118,7 +118,7 @@ class OutputPortConnector(PortConnector[T]):
         self.endpoint = None
         self.safe_to_advance_to: Time = forever
 
-    def set_DSTAT(self, first_timestamp: Time) -> None:
+    def set_STAT(self, first_timestamp: Time) -> None:
         self.safe_to_advance_to = first_timestamp
 
     def set_value(self, value: T) -> None:
@@ -128,7 +128,7 @@ class OutputPortConnector(PortConnector[T]):
         self,
         value: T,
         timestamp: Optional[Time] = None,
-        DSTAT: Optional[Time] = None,
+        STAT: Optional[Time] = None,
     ) -> None:
         for downstream_port, is_physical in self.downstream_ports:
             if not is_physical:
@@ -136,7 +136,7 @@ class OutputPortConnector(PortConnector[T]):
                     Message(
                         data=value,
                         timestamp=timestamp,
-                        DSTAT=DSTAT,
+                        STAT=STAT,
                         from_port=self.name,
                         to_port=downstream_port.name,
                     )
@@ -146,7 +146,7 @@ class OutputPortConnector(PortConnector[T]):
                     Message(
                         data=value,
                         timestamp=None,
-                        DSTAT=None,
+                        STAT=None,
                         from_port=self.name,
                         to_port=downstream_port.name,
                     )

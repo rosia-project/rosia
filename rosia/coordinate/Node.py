@@ -178,7 +178,7 @@ class NodeRuntime:
             self.node_instance, *self.node_init_args.args, **self.node_init_args.kwargs
         )
 
-    def get_output_port_DSTAT(self) -> Dict[str, Time]:
+    def get_output_port_STAT(self) -> Dict[str, Time]:
         output_port_safe_to_advance_to = {}
         for output_port in self.output_port_connectors.values():
             output_port_safe_to_advance_to[output_port.name] = (
@@ -186,11 +186,11 @@ class NodeRuntime:
             )
         return output_port_safe_to_advance_to
 
-    def set_output_port_DSTAT(self, output_port_to_sta: Dict[str, Time]) -> None:
+    def set_output_port_STAT(self, output_port_to_sta: Dict[str, Time]) -> None:
         for input_port in self.input_port_connectors.values():
             for output_port, _is_physical in input_port.upstream_ports:
                 if output_port.name in output_port_to_sta.keys():
-                    output_port.set_DSTAT(output_port_to_sta[output_port.name])
+                    output_port.set_STAT(output_port_to_sta[output_port.name])
             input_port.update_safe_to_advance_to()
 
     def event_loop(self) -> None:
@@ -377,7 +377,7 @@ class NodeRuntime:
                 )
                 input_port = self.input_port_connectors[message.to_port]
 
-                if message.DSTAT is not None:
+                if message.STAT is not None:
                     from_output_port_name = message.from_port
                     assert from_output_port_name is not None, (
                         f"Message from_port {message.from_port} is None"
@@ -387,7 +387,7 @@ class NodeRuntime:
                     )
                     from_output_port.safe_to_advance_to = max(
                         from_output_port.safe_to_advance_to,
-                        message.DSTAT,
+                        message.STAT,
                     )
                     input_port.update_safe_to_advance_to()
                 self.update_STAT()

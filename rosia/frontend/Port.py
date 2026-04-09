@@ -49,7 +49,7 @@ class OutputPort(Generic[T]):
         self,
         value: T,
         timestamp: Optional["Time"] = None,
-        DSTAT: Optional["Time"] = None,
+        STAT: Optional["Time"] = None,
     ) -> None:
         pass
 
@@ -57,7 +57,7 @@ class OutputPort(Generic[T]):
     def connect(self, other: T) -> "OutputPort[T]":
         return self
 
-    def set_DSTAT(self, first_timestamp: "Time") -> None:
+    def set_STAT(self, first_timestamp: "Time") -> None:
         pass
 
     # >> shorthand for connect

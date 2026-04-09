@@ -15,13 +15,13 @@ class MessageBase(Generic[T]):
 
 @dataclass
 class Message(MessageBase[T]):
-    DSTAT: Optional[Time]
+    STAT: Optional[Time]
     data: T
     from_port: str
     to_port: str
 
     def __str__(self) -> str:
-        return f"Message(timestamp={self.timestamp}, DSTAT={self.DSTAT}, data={self.data}, from_port={self.from_port}, to_port={self.to_port})"
+        return f"Message(timestamp={self.timestamp}, STAT={self.STAT}, data={self.data}, from_port={self.from_port}, to_port={self.to_port})"
 
 
 @dataclass

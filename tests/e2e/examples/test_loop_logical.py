@@ -31,17 +31,17 @@ class Manager:
     output_int = OutputPort[int]()
 
     def __init__(self):
-        self.output_int.set_DSTAT(0 * s)
+        self.output_int.set_STAT(0 * s)
 
     def start(self):
         log.info("Manager starting")
-        self.output_int(1, DSTAT=1 * s)
+        self.output_int(1, STAT=1 * s)
 
     @reaction([input_int])
     def forward(self):
         log.info(f"Manager received: {self.input_int}, sending: {self.input_int + 1}")
         advance_logical_time(1 * s)
-        self.output_int(self.input_int + 1, DSTAT=1 * s)
+        self.output_int(self.input_int + 1, STAT=1 * s)
 
 
 @pytest.mark.timeout(30)

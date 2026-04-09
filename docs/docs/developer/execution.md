@@ -23,22 +23,22 @@ Each node maintains the following state:
 | `logical_time`          | `Time`                          | The timestamp currently being processed ($t_{node}$).                                                                                                               | `Time(0)`        |
 | `STAT`                  | `Time`                          | Safe To Advance To ($g_{node}$).                                                                                                                                    | `forever`        |
 | `event_queue`           | `EventQueue`                    | Priority queue of events ordered by `(timestamp, priority)`. At the same timestamp, `InputPortEvent` (priority 0) is processed before `ShutdownEvent` (priority 1). | empty            |
-| `input_port_connectors` | `Dict[str, InputPortConnector]` | Input ports on this node, keyed by name. Each input port tracks its own `safe_to_advance_to` as the min of the DSTATs of its upstream output ports.                 | from declaration |
+| `input_port_connectors` | `Dict[str, InputPortConnector]` | Input ports on this node, keyed by name. Each input port tracks its own `safe_to_advance_to` as the min of the STATs of its upstream output ports.                  | from declaration |
 | `shutdown_requested`    | `bool`                          | Whether shutdown has been requested.                                                                                                                                | `false`          |
 
 ## Node Functions
 
-| Function                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `__init__()`                    | Constructs the `NodeRuntime`, creates port connectors and runtime objects from the node class annotations.                                                                                                                                                                                                                                                                                                                                  |
-| `init_remote()`                 | Sets up the receiver transport and logger.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `init_output_transports()`      | Creates sender transports to downstream nodes.                                                                                                                                                                                                                                                                                                                                                                                              |
-| `init_node_instance()`          | Calls the user's `__init__` on the node instance.                                                                                                                                                                                                                                                                                                                                                                                           |
-| `execute()`                     | Entry point: calls `self.node_instance.start()`, then enters the main event loop. Calls `self.node_instance.shutdown()` after loop exits, then `sys.exit()`.                                                                                                                                                                                                                                                                                |
-| `drain_message_queue()`         | Drains transport into `event_queue`, updates port DSTATs. Creates `InputPortEvent` or `ShutdownEvent` objects.                                                                                                                                                                                                                                                                                                                              |
-| `update_STAT()`                 | Computes STAT as min of input port `safe_to_advance_to` values.                                                                                                                                                                                                                                                                                                                                                                             |
-| `advance_logical_time(to_time)` | Processes events from `event_queue` with timestamp < `to_time`. For each `InputPortEvent`: sets port values, fires reactions, recomputes STAT, and sends DSTAT updates to affected output ports. Port values are retained (not cleared) so that each port always holds its most recent value. Returns early if a `ShutdownEvent` is encountered (sets `shutdown_requested`) or if a reaction throws an exception (requests error shutdown). |
-| `request_shutdown()`            | Sends a `ApplicationShutdownRequestMessage` to the coordinator.                                                                                                                                                                                                                                                                                                                                                                             |
+| Function                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `__init__()`                    | Constructs the `NodeRuntime`, creates port connectors and runtime objects from the node class annotations.                                                                                                                                                                                                                                                                                                                                 |
+| `init_remote()`                 | Sets up the receiver transport and logger.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `init_output_transports()`      | Creates sender transports to downstream nodes.                                                                                                                                                                                                                                                                                                                                                                                             |
+| `init_node_instance()`          | Calls the user's `__init__` on the node instance.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `execute()`                     | Entry point: calls `self.node_instance.start()`, then enters the main event loop. Calls `self.node_instance.shutdown()` after loop exits, then `sys.exit()`.                                                                                                                                                                                                                                                                               |
+| `drain_message_queue()`         | Drains transport into `event_queue`, updates port STATs. Creates `InputPortEvent` or `ShutdownEvent` objects.                                                                                                                                                                                                                                                                                                                              |
+| `update_STAT()`                 | Computes STAT as min of input port `safe_to_advance_to` values.                                                                                                                                                                                                                                                                                                                                                                            |
+| `advance_logical_time(to_time)` | Processes events from `event_queue` with timestamp < `to_time`. For each `InputPortEvent`: sets port values, fires reactions, recomputes STAT, and sends STAT updates to affected output ports. Port values are retained (not cleared) so that each port always holds its most recent value. Returns early if a `ShutdownEvent` is encountered (sets `shutdown_requested`) or if a reaction throws an exception (requests error shutdown). |
+| `request_shutdown()`            | Sends a `ApplicationShutdownRequestMessage` to the coordinator.                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## Lifecycle Execution
 
@@ -46,7 +46,7 @@ The coordinator synchronizes lifecycle stages across all nodes via barriers. No 
 
 ### 1. Initialize
 
-The user's `__init__` function runs before any communication. Nodes set up internal state, load models, and configure DSTAT defaults. No messages are sent or received.
+The user's `__init__` function runs before any communication. Nodes set up internal state, load models, and configure STAT defaults. No messages are sent or received.
 
 ### 2. Startup
 
@@ -71,7 +71,7 @@ Messages are drained from the transport layer and inserted into the event queue:
 
 1. Receive a message from the transport.
 2. If it is a `ShutdownMessage`, push a `ShutdownEvent` to the event queue.
-3. Otherwise, update the DSTAT on the source output port and the `safe_to_advance_to` on the destination input port.
+3. Otherwise, update the STAT on the source output port and the `safe_to_advance_to` on the destination input port.
 4. Push into the event queue via `event_queue.push_input_port_event()`, which merges with an existing `InputPortEvent` at the same timestamp. Sending multiple messages at the same timestamp from the same port raises an error.
 
 ## Event Queue
@@ -84,7 +84,7 @@ The `EventQueue` class (defined in `rosia/coordinate/Events.py`) provides:
 - `push_shutdown_event(timestamp, status_code)` — pushes a `ShutdownEvent`.
 - `pop()` — removes and returns the event with the smallest `(timestamp, priority)`.
 - `peek_time()` — returns the minimum timestamp without popping. Returns `forever` if empty.
-- `peek_data_time()` — returns the minimum `InputPortEvent` timestamp, ignoring `ShutdownEvent`s. Used for DSTAT computation since DSTAT is a promise about future data messages, not system events.
+- `peek_data_time()` — returns the minimum `InputPortEvent` timestamp, ignoring `ShutdownEvent`s. Used for STAT computation since STAT is a promise about future data messages, not system events.
 
 There are two event types:
 
@@ -97,11 +97,11 @@ STAT (Safe To Advance To) determines the maximum time the node can safely advanc
 
 $$\text{STAT} = \min_{p \in \text{input\_ports}} p.\text{safe\_to\_advance\_time}$$
 
-Each input port's `safe_to_advance_to` is the min of the DSTATs of its upstream output ports.
+Each input port's `safe_to_advance_to` is the min of the STATs of its upstream output ports.
 
 ## Main Execution Loop
 
-The main loop processes events in timestamp order, advancing logical time up to a given time. For each `InputPortEvent`, it sets port values, fires reactions, recomputes STAT, and sends DSTAT updates (using
+The main loop processes events in timestamp order, advancing logical time up to a given time. For each `InputPortEvent`, it sets port values, fires reactions, recomputes STAT, and sends STAT updates (using
 `min(STAT, event_queue.peek_data_time())`) to affected output ports. If a `ShutdownEvent` is encountered, it sets `shutdown_requested` and returns.
 
 ## Sending Messages
@@ -109,8 +109,8 @@ The main loop processes events in timestamp order, advancing logical time up to 
 When a node sends a message via an output port, the send path first drains the message queue and checks for shutdown. This is necessary for nodes that send from `start()` (e.g. Timer), which never enter the event loop and would otherwise
 never receive shutdown messages. For nodes sending from reactions inside the event loop, the drain is redundant since it already happened at the top of the loop.
 
-The `timestamp` is always the node's current `logical_time`. If DSTAT is not specified, it defaults to `min(STAT, event_queue.peek_data_time())` — the minimum of the upstream DSTAT constraint and the next pending data event.
-`peek_data_time()` excludes `ShutdownEvent`s since DSTAT is a promise about future data, not system events.
+The `timestamp` is always the node's current `logical_time`. If STAT is not specified, it defaults to `min(STAT, event_queue.peek_data_time())` — the minimum of the upstream STAT constraint and the next pending data event.
+`peek_data_time()` excludes `ShutdownEvent`s since STAT is a promise about future data, not system events.
 
 ## Reaction Triggering
 

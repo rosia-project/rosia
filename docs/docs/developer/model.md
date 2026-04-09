@@ -36,7 +36,7 @@ class RosiaNode:
 
 There are four stages in a Rosia node's lifecycle. Lifecycles between nodes are synced automatically by the coordinator. It is not expected behavior that two nodes are in different states in the lifecycle.
 
-- **Initialize**: The `__init__` function is executed during the setup stage, before the application actually runs. This is used to load models, setup DSTAT, etc. Nodes are not expected to send data to each other at this stage.
+- **Initialize**: The `__init__` function is executed during the setup stage, before the application actually runs. This is used to load models, setup STAT, etc. Nodes are not expected to send data to each other at this stage.
 - **Startup**: After the setup stage, the application starts running. The `start` function is always the first function called in a node during execution.
 - **Exection**: Any node marked with `@reaction` will be triggered by the framework if a new message arrives on the ports that the function is marked to react to.
 - **Shutdown**: The `shutdown` function will be automatically triggered by the framework at the time designated by `request_shutdown()`.
@@ -55,7 +55,7 @@ node1.output_port_1 >>= node2.input_port_1
 
 ## Node Logical Time
 
-In Rosia, the rule of thumb for synchronization is that messages with the same timestamp will be processed at the same time (if DSTAT is configured correctly).
+In Rosia, the rule of thumb for synchronization is that messages with the same timestamp will be processed at the same time (if STAT is configured correctly).
 
 Each node maintains two logical times:
 
@@ -84,12 +84,12 @@ STAT can be computed from node state. Each node maintains two queues:
 - Message Queue: this is maintained by the transport layer.
 - Event Queue: ordered by timestamp, every event maps to a set of messages.
 
-STAT is the minimum DSTAT of all upstream ports of all input ports.
+STAT is the minimum STAT of all upstream ports of all input ports.
 
 STAT should be updated when:
 
 1. After an event is processed.
-2. After the message queue received a new message (potentially different DSTAT).
+2. After the message queue received a new message (potentially different STAT).
 
 ## Node Synchronization
 
@@ -100,25 +100,25 @@ Synchronization is achieved via a simple API:
 def RosiaReaction():
     self.output_port_1(
         <message>,
-        DSTAT=<Time>
+        STAT=<Time>
     )
 ```
 
-With each message that is sent out, two associated values are also sent: `timestamp` and `DSTAT`.
+With each message that is sent out, two associated values are also sent: `timestamp` and `STAT`.
 
 - **Timestamp**: the timestamp $t$ of the message, which is the same as logical time of the node. A port cannot send multiple messages at the same timestamp — doing so will raise an error. To send multiple messages, the node must advance
   its logical time between sends.
-- **Downstream Safe To Advance To (DSTAT)**: a DSTAT of timestamp $g$ is a promise that this output port will not send another message with timestamp $t'$ < $g$. Since $t < t'$ of the current message timestamp, this means $t < g$, and an
-  error will be thrown otherwise.
+- **Safe To Advance To (STAT)**: a STAT of timestamp $g$ is a promise that this output port will not send another message with timestamp $t'$ < $g$. Since $t < t'$ of the current message timestamp, this means $t < g$, and an error will be
+  thrown otherwise.
 
-DSTAT has a dual purpose. First, it tells the downstream node to not advance to time $t >= g$ and wait for a message from this port. On the other hand, it tells the downstream node that this port is not opposed to it advancing to any time
+STAT has a dual purpose. First, it tells the downstream node to not advance to time $t >= g$ and wait for a message from this port. On the other hand, it tells the downstream node that this port is not opposed to it advancing to any time
 $t < g$.
 
-Normally the user doesn't have to deal with setting `timestamp` and `DSTAT`. Rosia provides a `Timer` node that should cover most of normal uses cases. The user has to deal with setting these values if custom timing and syncronization is
+Normally the user doesn't have to deal with setting `timestamp` and `STAT`. Rosia provides a `Timer` node that should cover most of normal uses cases. The user has to deal with setting these values if custom timing and syncronization is
 required, for example, when creating a simulator node.
 
-### DSTAT Inference
+### STAT Inference
 
-`timestamp` and `DSTAT` can be omitted by the user.
+`timestamp` and `STAT` can be omitted by the user.
 
-- `timestamp = None` and `DSTAT = None`: use the current logical time as `timestamp` and `min(STAT, next_pending_event_time)` as `DSTAT`. The next pending event time only considers data events, not shutdown events.
+- `timestamp = None` and `STAT = None`: use the current logical time as `timestamp` and `min(STAT, next_pending_event_time)` as `STAT`. The next pending event time only considers data events, not shutdown events.

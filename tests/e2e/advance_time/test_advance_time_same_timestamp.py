@@ -20,12 +20,12 @@ class SourceA:
     out = OutputPort[int]()
 
     def __init__(self):
-        self.out.set_DSTAT(Time(0))
+        self.out.set_STAT(Time(0))
 
     def start(self):
         t = Time(0)
         dt = 200 * ms
-        self.out(1, DSTAT=t + dt)
+        self.out(1, STAT=t + dt)
 
 
 @Node
@@ -33,12 +33,12 @@ class SourceB:
     out = OutputPort[int]()
 
     def __init__(self):
-        self.out.set_DSTAT(Time(0))
+        self.out.set_STAT(Time(0))
 
     def start(self):
         t = Time(0)
         dt = 200 * ms
-        self.out(2, DSTAT=t + dt)
+        self.out(2, STAT=t + dt)
 
 
 @Node

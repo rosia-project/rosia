@@ -10,14 +10,14 @@ class Timer:
     def __init__(self, interval: Time, offset: Time = Time(0)):
         self.interval = interval
         self.time_current = offset
-        self.output_timer.set_DSTAT(self.time_current)
+        self.output_timer.set_STAT(self.time_current)
 
     def start(self, start_logical_time: Time):
         self.start_logical_time = start_logical_time
         while True:
             self.output_timer(
                 self.time_current,
-                DSTAT=self.time_current + self.interval,
+                STAT=self.time_current + self.interval,
             )
             yield self.interval
             self.time_current += self.interval

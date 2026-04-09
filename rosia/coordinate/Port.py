@@ -41,21 +41,21 @@ class OutputPortRuntimeObj(Generic[T]):
     def __set__(self, value: T) -> None:
         raise TypeError("OutputPortRuntimeObj is immutable")
 
-    def set_DSTAT(self, first_timestamp: Time) -> None:
-        self.output_port_connector.set_DSTAT(first_timestamp)
+    def set_STAT(self, first_timestamp: Time) -> None:
+        self.output_port_connector.set_STAT(first_timestamp)
 
     def __call__(
         self,
         value: T,
-        DSTAT: Optional[Time] = None,
+        STAT: Optional[Time] = None,
     ) -> None:
         timestamp = self.node_runtime.logical_time
-        if DSTAT is not None:
-            DSTAT += self.node_runtime.logical_time
-        elif DSTAT is None:
-            DSTAT = min(
+        if STAT is not None:
+            STAT += self.node_runtime.logical_time
+        elif STAT is None:
+            STAT = min(
                 self.node_runtime.STAT, self.node_runtime.event_queue.peek_data_time()
             )
-        if timestamp > DSTAT:
-            raise ValueError(f"Timestamp {timestamp} is greater than DSTAT {DSTAT}")
-        self.output_port_connector._set_value(value, timestamp, DSTAT)
+        if timestamp > STAT:
+            raise ValueError(f"Timestamp {timestamp} is greater than STAT {STAT}")
+        self.output_port_connector._set_value(value, timestamp, STAT)
