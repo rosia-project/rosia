@@ -30,4 +30,11 @@ This can be solved with STAT. If we know $t_B$ in advance and set STAT to $t_B$,
 
 # Configuring STAT
 
-A STAT can be set for each output port when sending an message.
+A STAT can be set for each output port when sending an message. The API is
+
+```python
+self.output_port(<value>, STAT=<Time>)
+```
+
+Note that STAT is an interval instead of absolute time. The current logical time will be automatically added when sending STAT. One rule of thumb for setting STAT is to set it to the timestamp of the earliest next message(ENT, earliest next
+timestamp). This will ensure that the downsteam will not advance it's logical time past the ENT, essencially waiting for this message before advancing to that logical time.

@@ -15,7 +15,6 @@ pip install 'gymnasium[atari]' 'ale-py' 'autorom[accept-rom-license]'
 import numpy as np
 import gymnasium as gym
 import ale_py
-from dataclasses import dataclass
 
 
 import rerun as rr
@@ -25,117 +24,81 @@ from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.config import RerunConfig
 from rosia.time import s
-
+import rosia
 
 gym.register_envs(ale_py)
-
-
-@dataclass
-class Observation:
-    frame: np.ndarray  # (210, 160, 3) RGB image
-    reward: float
-    done: bool
-
-
-@dataclass
-class Action:
-    action: int  # 0=NOOP, 1=RIGHT, 2=LEFT
-
 
 # Colors in RGB
 PLAYER_COLOR = np.array([214, 92, 92])
 RED_FLAG_COLOR = np.array([184, 50, 50])
 BLUE_FLAG_COLOR = np.array([66, 72, 200])
 THETA_DIFF_THRESHOLD = 0.015
-
-
-def find_position(frame: np.ndarray, color: np.ndarray) -> tuple[float, float] | None:
-    """Find mean position of pixels matching color. Returns (row, col) or None."""
-    mask = np.all(frame == color, axis=2)
-    positions = np.argwhere(mask)
-    if len(positions) == 0:
-        return None
-    return float(positions[:, 0].mean()), float(positions[:, 1].mean())
-
-
-def find_flag(frame: np.ndarray) -> tuple[float, float] | None:
-    """Find the next flag gate (red or blue)."""
-    cropped = frame[:200]
-    pos = find_position(cropped, RED_FLAG_COLOR)
-    if pos is None:
-        pos = find_position(cropped, BLUE_FLAG_COLOR)
-    return pos
+SEED = 42
 
 
 @Node
 class Environment:
-    observation = OutputPort[Observation]()
-    action_in = InputPort[Action]()
+    observation = OutputPort[np.ndarray]()
+    action_in = InputPort[int]()
 
     def __init__(self, render: bool = True):
         self.render = render
-
-    def start(self):
+        self.observation.set_STAT(0 * s)
+        self.dt = 1 * s / 15
         render_mode = "rgb_array" if self.render else None
         self.env = gym.make("ALE/Skiing-v5", render_mode=render_mode)
-        frame, _ = self.env.reset()
+        self.env.action_space.seed(SEED)
+
+    def start(self):
+        frame, _ = self.env.reset(seed=SEED)
         log.info("Game started")
-        self.observation(
-            Observation(
-                frame=frame,
-                reward=0.0,
-                done=False,
-            )
-        )
+        self.observation(frame, STAT=self.dt)
 
     @reaction([action_in])
     def on_action(self):
-        action = self.action_in
-        frame, reward, terminated, truncated, _ = self.env.step(action.action)
+        frame, _, terminated, truncated, _ = self.env.step(self.action_in)
         done = terminated or truncated
-
-        yield 1 * s / 15
-
-        self.observation(
-            Observation(
-                frame=frame,
-                reward=float(reward),
-                done=done,
-            )
-        )
-
         if done:
             log.info("Game over!")
-            self.env.close()
-            request_shutdown(0 * s)
+            request_shutdown()
+        else:
+            rosia.advance_logical_time(self.dt)
+            self.observation(frame, STAT=self.dt)
 
     def shutdown(self):
-        if hasattr(self, "env"):
-            self.env.close()
+        self.env.close()
 
 
 @Node
 class Agent:
-    observation_in = InputPort[Observation]()
-    action_out = OutputPort[Action]()
+    observation_in = InputPort[np.ndarray]()
+    action_out = OutputPort[int]()
 
     def __init__(self):
         self.prev_theta = 0.0
-        self.step_count = 0
+
+    def find_position(
+        self, frame: np.ndarray, color: np.ndarray
+    ) -> tuple[float, float] | None:
+        """Find mean position of pixels matching color. Returns (row, col) or None."""
+        mask = np.all(frame == color, axis=2)
+        positions = np.argwhere(mask)
+        if len(positions) == 0:
+            return None
+        return float(positions[:, 0].mean()), float(positions[:, 1].mean())
 
     @reaction([observation_in])
     def decide(self):
-        obs = self.observation_in
-        if obs.done:
-            return
-
-        frame = obs.frame
-        player_pos = find_position(frame, PLAYER_COLOR)
-        flag_pos = find_flag(frame)
+        frame = self.observation_in
+        player_pos = self.find_position(frame, PLAYER_COLOR)
+        cropped = frame[:200]
+        flag_pos = self.find_position(cropped, RED_FLAG_COLOR) or self.find_position(
+            cropped, BLUE_FLAG_COLOR
+        )
 
         if player_pos is None or flag_pos is None:
             # Can't see player or flag, go straight
-            self.action_out(Action(action=0))
+            self.action_out(0)
             return
 
         player_row, player_col = player_pos
@@ -152,11 +115,8 @@ class Agent:
         else:
             action = 0  # NOOP
 
-        self.step_count += 1
-
         log.rerun(rr.Image(frame), rerun_subpath="game")
-        # rosia.advance_time(1 * s / 15)
-        self.action_out(Action(action=action))
+        self.action_out(action)
 
 
 if __name__ == "__main__":
