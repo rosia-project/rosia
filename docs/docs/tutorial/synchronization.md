@@ -18,8 +18,7 @@ Two timers tick at the same interval and offset. Each drives its own `IntGenerat
 ## Nodes
 
 ```python
-from rosia import InputPort, OutputPort, reaction, Node, Application, request_shutdown
-from rosia import log
+from rosia import InputPort, OutputPort, reaction, Node, Application, request_shutdown, log
 from rosia.time import Timer, Time, s
 
 

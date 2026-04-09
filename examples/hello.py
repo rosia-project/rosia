@@ -1,5 +1,4 @@
-from rosia import InputPort, OutputPort, reaction, Node, Application
-from rosia import log
+from rosia import InputPort, OutputPort, reaction, Node, Application, log
 
 
 @Node

@@ -51,8 +51,13 @@ class Reaction:
             try:
                 result = self.function(*self.args, **self.kwargs)
                 if inspect.isgenerator(result):
-                    delta = next(result)
-                    return Reaction(result, self.timestamp + delta, eager=self.eager)
+                    try:
+                        delta = next(result)
+                        return Reaction(
+                            result, self.timestamp + delta, eager=self.eager
+                        )
+                    except StopIteration:
+                        return None
             except TerminateReactionException:
                 return None
             return None

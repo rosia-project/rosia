@@ -19,11 +19,17 @@ import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 
-from rosia import InputPort, OutputPort, reaction, Node, Application
-from rosia import request_shutdown, log
+from rosia import (
+    InputPort,
+    OutputPort,
+    reaction,
+    Node,
+    Application,
+    request_shutdown,
+    log,
+)
 from rosia.config import RerunConfig
-from rosia.time import s, ms, Time
-from rosia.time.Timer import Timer
+from rosia.time import Timer, Time, s, ms
 
 
 class BallState:

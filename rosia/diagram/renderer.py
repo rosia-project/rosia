@@ -246,7 +246,7 @@ def _get_timer_label(init_args: Any) -> Optional[str]:
     else:
         offset = Time(0)
 
-    return f"({interval},{offset})"
+    return f"({offset},{interval})"
 
 
 def _draw_rect_node(

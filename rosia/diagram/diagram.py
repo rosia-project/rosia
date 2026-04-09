@@ -168,12 +168,34 @@ def _extract_reactions(runtime: Any, node_name: str) -> List[Reaction]:
     """Extract unique reactions from a node's input port connectors."""
     reactions_by_name: Dict[str, Reaction] = {}
 
+    # Detect start() on the original user class
+    original_cls = None
+    if hasattr(runtime.node_cls, "_rosia_annotations"):
+        original_cls = runtime.node_cls._rosia_annotations.get("original_cls")
+    if original_cls is not None and hasattr(original_cls, "start"):
+        start_func = original_cls.start
+        effect_port_ids: List[str] = []
+        try:
+            output_port_names = analyze_output_ports(start_func)
+            for op_name in output_port_names:
+                full_name = f"{node_name}.{op_name}"
+                if full_name in runtime.output_port_connectors:
+                    if full_name not in effect_port_ids:
+                        effect_port_ids.append(full_name)
+        except Exception:
+            pass
+        reactions_by_name["start"] = Reaction(
+            name="start",
+            trigger_ports=[],
+            effect_ports=effect_port_ids,
+        )
+
     for port_name, connector in runtime.input_port_connectors.items():
         for func in connector.trigger_functions:
             fname = func.__name__
             if fname not in reactions_by_name:
                 # Use AST analysis to get precise output ports for this reaction
-                effect_port_ids: List[str] = []
+                effect_port_ids = []
                 try:
                     output_port_names = analyze_output_ports(func)
                     for op_name in output_port_names:

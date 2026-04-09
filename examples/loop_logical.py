@@ -10,8 +10,15 @@ the value reaches 5, at which point Worker requests shutdown.
 Demonstrates bidirectional connections forming a feedback loop.
 """
 
-from rosia import InputPort, OutputPort, reaction, Node, Application
-from rosia import request_shutdown, log
+from rosia import (
+    InputPort,
+    OutputPort,
+    reaction,
+    Node,
+    Application,
+    request_shutdown,
+    log,
+)
 from rosia.time import s
 
 

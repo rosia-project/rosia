@@ -217,7 +217,7 @@ def _get_timer_label(init_args: Any) -> Optional[str]:
         offset = init_args.kwargs["offset"]
     else:
         offset = Time(0)
-    return f"({interval},{offset})"
+    return f"({offset},{interval})"
 
 
 def _svg_rect_node(node: "Node", idx: int, y_offset: float) -> str:
