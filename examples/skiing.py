@@ -24,7 +24,6 @@ from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.config import RerunConfig
 from rosia.time import s
-import rosia
 
 gym.register_envs(ale_py)
 
@@ -54,7 +53,7 @@ class Environment:
         log.info("Game started")
         self.observation(frame, STAT=self.dt)
 
-    @reaction([action_in])
+    @reaction([action_in], eager=True)
     def on_action(self):
         frame, _, terminated, truncated, _ = self.env.step(self.action_in)
         done = terminated or truncated
@@ -62,7 +61,7 @@ class Environment:
             log.info("Game over!")
             request_shutdown()
         else:
-            rosia.advance_logical_time(self.dt)
+            yield self.dt
             self.observation(frame, STAT=self.dt)
 
     def shutdown(self):

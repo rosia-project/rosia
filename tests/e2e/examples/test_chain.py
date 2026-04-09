@@ -1,5 +1,4 @@
 import pytest
-import time
 
 from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
@@ -17,7 +16,7 @@ class IntGenerator:
         for _ in range(3):
             self.output(self.count)
             self.count += 1
-            time.sleep(0.01)
+            yield 1 * s
         request_shutdown(0 * s)
 
 

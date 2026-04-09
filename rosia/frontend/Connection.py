@@ -13,7 +13,7 @@ from typing import (
 from rosia.comms.Types import ClientType
 from rosia.comms.transports import TransportBase
 from rosia.coordinate.messages.base import Message
-from rosia.time import Time, forever
+from rosia.time import Time, forever, never
 
 if TYPE_CHECKING:
     from rosia.coordinate.Node import NodeRuntime
@@ -117,6 +117,7 @@ class OutputPortConnector(PortConnector[T]):
         self.name = f"{owner.node_name}.{name}"
         self.endpoint = None
         self.safe_to_advance_to: Time = forever
+        self.last_sent_timestamp: Time = never
 
     def set_STAT(self, first_timestamp: Time) -> None:
         self.safe_to_advance_to = first_timestamp
@@ -130,6 +131,12 @@ class OutputPortConnector(PortConnector[T]):
         timestamp: Optional[Time] = None,
         STAT: Optional[Time] = None,
     ) -> None:
+        if timestamp is not None and timestamp <= self.last_sent_timestamp:
+            raise ValueError(
+                f"Timestamp {timestamp} is not greater than last sent timestamp {self.last_sent_timestamp}"
+            )
+        if timestamp is not None:
+            self.last_sent_timestamp = timestamp
         for downstream_port, is_physical in self.downstream_ports:
             if not is_physical:
                 downstream_port.set_value(

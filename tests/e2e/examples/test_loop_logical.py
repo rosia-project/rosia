@@ -1,13 +1,6 @@
 import pytest
 
-from rosia import (
-    InputPort,
-    OutputPort,
-    reaction,
-    Node,
-    Application,
-    advance_logical_time,
-)
+from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.time import s
 
@@ -37,10 +30,10 @@ class Manager:
         log.info("Manager starting")
         self.output_int(1, STAT=1 * s)
 
-    @reaction([input_int])
+    @reaction([input_int], eager=True)
     def forward(self):
         log.info(f"Manager received: {self.input_int}, sending: {self.input_int + 1}")
-        advance_logical_time(1 * s)
+        yield 1 * s
         self.output_int(self.input_int + 1, STAT=1 * s)
 
 

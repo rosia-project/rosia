@@ -38,7 +38,6 @@ from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown, log
 from rosia.config import RerunConfig
 from rosia.time import s
-import rosia
 
 gym.register_envs(ale_py)
 
@@ -68,7 +67,7 @@ class Environment:
         log.info("Game started")
         self.observation(frame, STAT=self.dt)
 
-    @reaction([action_in])
+    @reaction([action_in], eager=True)
     def on_action(self):
         frame, _, terminated, truncated, _ = self.env.step(self.action_in)
         done = terminated or truncated
@@ -76,7 +75,7 @@ class Environment:
             log.info("Game over!")
             request_shutdown()
         else:
-            rosia.advance_logical_time(self.dt)
+            yield self.dt
             self.observation(frame, STAT=self.dt)
 
     def shutdown(self):
@@ -88,31 +87,30 @@ A few things to note about `Environment`:
 - `self.dt = 1 * s / 15` is the simulator step duration — one Atari frame at 15 Hz.
 - `self.observation.set_STAT(0 * s)` declares that the very first frame is sent at logical time `0s`. Without this, the downstream agent would not know it is safe to advance.
 - In `start()`, the initial frame is sent with `STAT=self.dt`, telling the agent: "the next observation will be at most `dt` from now". The agent can then advance its logical time up to (but not past) `dt` while waiting.
-- In `on_action()`, the environment first calls `rosia.advance_logical_time(self.dt)` to push its own logical time forward by one frame, then sends the new observation again with `STAT=self.dt`. This keeps the loop running at a steady 15 Hz
-  in logical time, regardless of how fast the wall clock is.
+- In `on_action()`, the reaction uses `yield self.dt` to advance logical time by one frame, then sends the new observation with `STAT=self.dt`. This keeps the loop running at a steady 15 Hz in logical time, regardless of how fast the wall
+  clock is.
 - When the episode ends, `request_shutdown()` is called from inside the reaction, which tears down the application.
 
-### Why `advance_logical_time` instead of `yield`?
+### Why `eager=True`?
 
-A natural first instinct is to write the per-frame delay as a `yield`:
+Without `eager=True`, `yield self.dt` would deadlock in this feedback loop:
 
 ```python
-@reaction([action_in])
+@reaction([action_in])           # ❌ deadlocks without eager=True
 def on_action(self):
     frame, _, terminated, truncated, _ = self.env.step(self.action_in)
-    yield self.dt   # ❌ deadlocks
+    yield self.dt
     self.observation(frame, STAT=self.dt)
 ```
 
-This deadlocks. `yield self.dt` suspends the reaction and asks the framework to resume it once STAT has advanced past `logical_time + dt`. STAT for `Environment` is determined by `action_in`, which means the framework will wait for the next
-`action` message before resuming. But the next `action` cannot be produced until `Agent` receives the next `observation` — and `observation` is only sent _after_ the `yield` returns. The two nodes are stuck waiting for each other across a
-zero-delay cycle.
+Here's why. Normally, `yield self.dt` suspends the reaction and waits until STAT has advanced _strictly past_ `logical_time + dt` before resuming. STAT for `Environment` is determined by `action_in` — the framework waits for the next
+`action` message before it considers it safe to advance. But the next `action` cannot be produced until `Agent` receives the next `observation`, which is only sent _after_ the `yield` returns. The two nodes are stuck waiting for each other:
+a **causality loop**.
 
-`rosia.advance_logical_time(self.dt)` breaks the deadlock because it does **not** wait on STAT. It advances `logical_time` directly by `self.dt` and returns immediately, so the reaction can keep going and send the new `observation`. Once
-the observation is on the wire, `Agent` can react, produce an action, and let `Environment` step again. The contract is that the caller is asserting "nothing earlier than the new logical time matters for this node" — exactly what is true
-for a fixed-step simulator that owns its own clock.
+`eager=True` resolves this by relaxing the STAT guard from _strictly past_ (`t < STAT`) to _at or past_ (`t <= STAT`). When the Agent's action arrives with `STAT=dt`, the Environment's yield target is exactly `dt`. Without `eager`, the
+guard blocks (`dt >= dt`). With `eager`, it passes (`dt > dt` is false, so the eager reaction proceeds).
 
-In short: use `yield` when you want the framework to synchronize you with incoming messages; use `advance_logical_time` when _you_ are the source of the clock and a `yield` would wait on something that depends on you sending first.
+This one-tick relaxation is safe for feedback loops because the message at exactly STAT is the one this reaction itself will produce — it cannot arrive from upstream before we send it.
 
 ```python
 @Node
@@ -214,5 +212,5 @@ A single-process loop would also work for this toy example, but expressing it as
 
 - Closed-loop simulators map naturally onto two reacting nodes connected in a cycle.
 - Use `set_STAT` and the `STAT=` argument on `output_port(...)` to advertise when the next message will arrive, so the downstream node can advance logical time safely.
-- `rosia.advance_logical_time(dt)` lets a node move its own clock forward between sends, which is exactly what a fixed-step simulator needs.
+- Use `@reaction([...], eager=True)` for reactions in feedback loops where a `yield` would otherwise deadlock due to a causality loop. `eager=True` relaxes the STAT guard from `t < STAT` to `t <= STAT`.
 - Seeding both `env.reset(seed=...)` and `env.action_space.seed(...)` makes the run deterministic.

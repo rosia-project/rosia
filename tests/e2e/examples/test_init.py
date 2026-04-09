@@ -1,5 +1,4 @@
 import pytest
-import time
 
 from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
@@ -19,7 +18,7 @@ class StringGenerator:
             string = f"Hello, ROSIA! {self.count * self.multiplier}"
             self.output_str(string)
             self.count += 1
-            time.sleep(0.01)
+            yield 1 * s
         request_shutdown(0 * s)
 
 

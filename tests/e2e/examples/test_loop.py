@@ -1,5 +1,4 @@
 import pytest
-import time
 
 from rosia import InputPort, OutputPort, reaction, Node, Application
 from rosia import request_shutdown
@@ -16,10 +15,10 @@ class Worker:
 
     @reaction([input_int])
     def forward(self):
+        yield 1 * s
         self.output_int(self.input_int)
-        if self.input_int >= 3:
-            request_shutdown(0 * s)
-        time.sleep(0.01)
+        if self.input_int == 3:
+            request_shutdown()
 
 
 @Node

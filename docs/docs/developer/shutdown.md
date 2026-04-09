@@ -87,7 +87,7 @@ timestamps at or before the shutdown timestamp.
 
 #### 4. ShutdownEvent processed
 
-When `advance_logical_time` pops the `ShutdownEvent` from the event queue, `shutdown_requested` is set to `True`. This causes the event loop to exit. The node then calls `node.shutdown()` (if defined by the user) and the process exits.
+When `advance_to_STAT` pops the `ShutdownEvent` from the event queue, the shutdown reaction is enqueued and the event loop exits. The node then calls `node.shutdown()` (if defined by the user) and the process exits.
 
 This guarantees that all data events with timestamps at or before the shutdown timestamp are fully processed before the node exits. At the same timestamp, `InputPortEvent` (priority 0) is always processed before `ShutdownEvent` (priority
 1).

@@ -17,6 +17,7 @@ class Worker:
 
     @reaction([input_int])
     def forward(self):
+        yield 1 * s
         self.expected_int += 1
         assert self.input_int == self.expected_int, (
             f"Expected {self.expected_int} but received {self.input_int}"

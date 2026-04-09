@@ -13,32 +13,33 @@ class IntGenerator:
         self.count = 0
 
     def start(self):
-        while True:
+        for _ in range(3):
             self.output_int(self.count)
             self.count += 1
-            if self.count > 2:
-                request_shutdown(0 * s)
-                break
-            yield 1 * s
+        request_shutdown(0 * s)
 
 
 @Node
 class Printer:
     input_int = InputPort[int]()
 
+    def __init__(self):
+        self.received = []
+
     @reaction([input_int])
     def print_message(self):
-        pass
+        self.received.append(self.input_int)
 
 
 @pytest.mark.timeout(30)
-def test_shutdown():
+def test_easy():
     app = Application()
     int_gen = app.create_node(IntGenerator())
     printer = app.create_node(Printer())
     int_gen.output_int >>= printer.input_int
-    app.execute()
+    with pytest.raises(SystemExit):
+        app.execute()
 
 
 if __name__ == "__main__":
-    test_shutdown()
+    test_easy()
