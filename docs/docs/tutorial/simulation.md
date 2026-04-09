@@ -4,8 +4,10 @@ sidebar_position: 6
 
 # Simulation
 
+[Full source code](https://github.com/rosia-project/rosia/blob/main/examples/skiing.py)
+
 This tutorial shows how to drive a simulator with Rosia by building a closed loop between an Atari _Skiing_ environment and a heuristic agent that steers through the gates. It puts together everything from the previous tutorials: ports,
-reactions, logical time, STAT, and Rerun visualization.
+[reactions](../handbook/model#reactions), [logical time](../handbook/logical_time), [STAT](../handbook/STAT), and [Rerun visualization](rerun).
 
 ## Pipeline
 
@@ -93,7 +95,7 @@ A few things to note about `Environment`:
 
 ### Why `eager=True`?
 
-Without `eager=True`, `yield self.dt` would deadlock in this feedback loop:
+Without [`eager=True`](../handbook/eager), `yield self.dt` would deadlock in this feedback loop:
 
 ```python
 @reaction([action_in])           # ❌ deadlocks without eager=True
@@ -205,7 +207,8 @@ Because the environment is seeded with `SEED = 42` (both `env.reset(seed=...)` a
 A single-process loop would also work for this toy example, but expressing it as two Rosia nodes gives you a few things for free:
 
 - **Process isolation.** `Environment` and `Agent` run in separate processes, so a heavyweight learner or perception model can sit on the agent side without blocking simulation.
-- **Logical-time pacing.** The simulator advances in `1/15 s` steps in _logical_ time, independent of how long each step actually takes to compute. STAT keeps the agent and environment in lockstep without any explicit synchronization.
+- **Logical-time pacing.** The simulator advances in `1/15 s` steps in _logical_ time, independent of how long each step actually takes to compute. [STAT](../handbook/STAT) keeps the agent and environment in lockstep without any explicit
+  synchronization.
 - **Observability.** Rerun integration is one line per frame (`log.rerun(rr.Image(frame), ...)`), and the same logging that drives Rerun in development can be turned off in production.
 
 ## Key points

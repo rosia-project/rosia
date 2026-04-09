@@ -1,0 +1,9 @@
+{
+  "label": "Lifecycle",
+  "position": 4,
+  "description": "Lifecycle documentation for Rosia.",
+  "collapsed": true,
+  "link": {
+    "type": "generated-index"
+  }
+}

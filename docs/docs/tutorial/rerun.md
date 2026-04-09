@@ -4,6 +4,8 @@ sidebar_position: 5
 
 # Visualization with Rerun
 
+[Full source code](https://github.com/rosia-project/rosia/blob/main/examples/bouncing_ball.py)
+
 Rosia integrates with [Rerun](https://rerun.io/) for visualizing node data over time. Rerun provides an interactive viewer that plots data against both logical and physical time.
 
 ## Logging with `log.rerun()`
@@ -22,7 +24,7 @@ log.rerun(archetype, rerun_subpath="...")
 - `archetype` — any Rerun component (`rr.Points3D`, `rr.LineStrips3D`, `rr.Image`, `rr.TextLog`, etc.).
 - `rerun_subpath` — controls where it appears in the Rerun entity tree.
 
-Data is indexed by both **logical time** and **physical time**, so you can scrub through the timeline in either mode.
+Data is indexed by both **[logical time](../handbook/logical_time)** and **physical time**, so you can scrub through the timeline in either mode.
 
 ## Enabling Rerun
 

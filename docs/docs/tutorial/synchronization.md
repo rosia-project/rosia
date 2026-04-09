@@ -4,12 +4,14 @@ sidebar_position: 3
 
 # Synchronization
 
-This tutorial builds on the [Timer](timer.md) tutorial. Instead having just one timer and inte generator, now two independent timers drive two integer generators, and a single printer receives both streams and verifies they are
+[Full source code](https://github.com/rosia-project/rosia/blob/main/examples/synchronization.py)
+
+This tutorial builds on the [Timer](timer.md) tutorial. Instead of having just one timer and integer generator, now two independent timers drive two integer generators, and a single printer receives both streams and verifies they are
 synchronized.
 
 ## Pipeline
 
-Two timers tick at the same interval and offset. Each drives its own `IntGenerator`. The `Printer` has two input ports and reacts when both have a value at the same logical time.
+Two timers tick at the same interval and offset. Each drives its own `IntGenerator`. The `Printer` has two input ports and reacts when both have a value at the same [logical time](../handbook/logical_time).
 
 ![Synchronization Pipeline Diagram](imgs/synchronization_diagram.png)
 
@@ -90,6 +92,6 @@ This is the key difference from callback-based and pub-sub frameworks: you don't
 
 ## Key points
 
-- A reaction listing multiple input ports (`@reaction([port1, port2])`) fires when **any** listed port receives a message.
-- When the reaction fires, all ports reflect their values at that logical time.
+- A [reaction](../handbook/model#reactions) listing multiple input ports (`@reaction([port1, port2])`) fires when **any** listed port receives a message.
+- When the reaction fires, all ports reflect their values at that [logical time](../handbook/logical_time).
 - Two independent pipelines producing messages at the same logical time are automatically synchronized at the consumer.

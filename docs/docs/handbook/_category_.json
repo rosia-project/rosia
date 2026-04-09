@@ -1,0 +1,9 @@
+{
+  "label": "Handbook",
+  "position": 3,
+  "description": "Advanced usage documentation for Rosia.",
+  "collapsed": false,
+  "link": {
+    "type": "generated-index"
+  }
+}

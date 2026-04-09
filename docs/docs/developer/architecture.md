@@ -1,10 +1,10 @@
 ---
-sidebar_position: 2
+sidebar_position: 5
 ---
 
 # Architecture
 
-Rosia is designed to be distributed. Since performance is one of our primary goals, we rely on a minimal coordination mechenism.
+Rosia is designed to be distributed. Since performance is one of our primary goals, we rely on a minimal coordination mechanism.
 
 ## Executor
 
@@ -16,9 +16,9 @@ Nodes communicate with each other via ZeroMQ transports. This enables fast commu
 
 ## Serializer
 
-Python object are first serilized into bytes with `cloudpickle` before sending through the transport, and deserialized at the receiving node. The architecture is not tied to any specific serializer, and we intend to add support for custom
+Python objects are first serialized into bytes with `cloudpickle` before sending through the transport, and deserialized at the receiving node. The architecture is not tied to any specific serializer, and we intend to add support for custom
 serializers.
 
 ## Ports
 
-Each node can have several input ports and output ports. However, for performance reasons, all input ports share the same ZeroMQ PULL endpoint, and each output port has it's own ZeroMQ PUSH endpoint.
+Each node can have several input ports and output ports. However, for performance reasons, all input ports share the same ZeroMQ PULL endpoint, and each output port has its own ZeroMQ PUSH endpoint.

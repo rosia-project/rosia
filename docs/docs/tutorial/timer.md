@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # Timer
 
+[Full source code](https://github.com/rosia-project/rosia/blob/main/examples/timer.py)
+
 This tutorial shows how to use a `Timer` node to drive periodic events.
 
 ## Pipeline
@@ -50,7 +52,7 @@ class IntGenerator:
         self.count += 1
         self.output(self.count)
         if self.count >= 5:
-            request_shutdown()
+            request_shutdown(1 * s)
 
 
 @Node
@@ -93,7 +95,8 @@ Output:
 
 ## Logical time
 
-Each message in Rosia carries a **logical timestamp**. The `Timer` emits timestamps at its configured interval: `0ns`, `1s`, `2s`, etc. These are logical times, not wall-clock times — the application may run faster or slower than real time.
+Each message in Rosia carries a **[logical timestamp](../handbook/logical_time)**. The `Timer` emits timestamps at its configured interval: `0ns`, `1s`, `2s`, etc. These are logical times, not wall-clock times — the application may run
+faster or slower than real time.
 
 Notice the output above: `IntGenerator` receives tick `0.000ns` first, then `Printer` sees `Result: 1`, then tick `1.000s`, then `Result: 2`, and so on. Rosia guarantees that all nodes process messages in logical time order. Even though
 `IntGenerator` and `Printer` run in separate processes, `Printer` will never see `Result: 2` before `Result: 1`.
@@ -104,5 +107,5 @@ Time units available: `s` (seconds), `ms` (milliseconds), `us` (microseconds), `
 
 - `Timer` is a built-in source node that emits its current logical time at a fixed `interval`.
 - `IntGenerator` reacts to each tick by incrementing a counter and sending it downstream.
-- `request_shutdown()` stops the application after 5 ticks.
+- [`request_shutdown()`](../developer/lifecycle/shutdown#explicit-shutdown-request_shutdown) stops the application after 5 ticks.
 - The `>>=` operator connects an output port to an input port.

@@ -2,7 +2,7 @@
 sidebar_position: 3
 ---
 
-# Coordinated Startup
+# Startup
 
 There are two stages in rosia's coordinated startup: initialization and startup.
 

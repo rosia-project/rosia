@@ -4,11 +4,13 @@ sidebar_position: 1
 
 # Hello World
 
+[Full source code](https://github.com/rosia-project/rosia/blob/main/examples/hello.py)
+
 This tutorial builds a simple Rosia application: one node sends a message, another prints it.
 
 ## Define Nodes
 
-A Rosia node is a Python class decorated with `@Node`. Ports are declared as class attributes.
+A Rosia [node](../handbook/model#nodes) is a Python class decorated with `@Node`. [Ports](../handbook/model#ports) are declared as class attributes.
 
 ```python
 from rosia import InputPort, OutputPort, reaction, Node, Application, log
@@ -17,7 +19,7 @@ from rosia import InputPort, OutputPort, reaction, Node, Application, log
 class Greeter:
     output = OutputPort[str]()  # declares a typed output port
 
-    # start() is called at the beginning of execution in parallel
+    # start() is called once before the event loop begins
     def start(self):
         self.output("Hello, World!")  # Send a value on the output port
 
@@ -25,11 +27,11 @@ class Greeter:
 class Printer:
     message = InputPort[str]() # declares a typed input port.  Do not use `input` as a port name since it's a reserved Python keyword
 
-    @reaction([message])  # Function is executed when listed port receives a message
+    @reaction([message])  # Reaction is executed when listed port receives a message
     def print_message(self):
         log.info(self.message)  # self.message reads the current value of the input port
         # rosia's log function prefixes messages with the node name (e.g. [Printer_1])
-        # Available levels: log.debug(), log.info(), log.warning(), log.error()
+        # Available levels: log.debug(), log.info(), log.warning(), log.error(), log.critical()
 ```
 
 ## Wire and Run
@@ -45,7 +47,7 @@ app.diagram(save_to="hello_diagram.png")
 app.execute()
 ```
 
-Optinally, `app.diagram(save_to="hello_diagram.png")` generates an SVG visualization of the dataflow graph, showing nodes and their port connections:
+Optionally, `app.diagram(save_to="hello_diagram.png")` generates a visualization of the dataflow graph, showing nodes and their port connections:
 
 ![Hello World Diagram](imgs/hello_diagram.png)
 
