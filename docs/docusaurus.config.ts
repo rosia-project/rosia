@@ -129,6 +129,10 @@ const config: Config = {
               label: "GitHub Issues",
               href: "https://github.com/rosia-project/rosia/issues",
             },
+            {
+              label: "Join Slack",
+              href: "https://join.slack.com/t/rosia-group/shared_invite/zt-3txqtsyr5-ThEl4XFqwByigP7USkNJmw",
+            },
           ],
         },
         {
