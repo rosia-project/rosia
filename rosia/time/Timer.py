@@ -17,7 +17,7 @@ class Timer:
         while True:
             self.output_timer(
                 self.time_current,
-                STAT=self.time_current + self.interval,
+                STAT=self.interval,
             )
             yield self.interval
             self.time_current += self.interval
