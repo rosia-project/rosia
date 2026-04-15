@@ -13,12 +13,12 @@ class Timer:
         self.output_timer.set_STAT(self.time_current)
 
     def start(self, start_logical_time: Time):
-        self.start_logical_time = start_logical_time
+        yield self.time_current
         while True:
+            sleep_until_physical_time(self.time_current + start_logical_time)
             self.output_timer(
                 self.time_current,
                 STAT=self.interval,
             )
             yield self.interval
             self.time_current += self.interval
-            sleep_until_physical_time(self.time_current + self.start_logical_time)
