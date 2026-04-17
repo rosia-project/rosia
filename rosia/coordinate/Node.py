@@ -135,7 +135,7 @@ class NodeRuntime:
     def init_output_transports(self, node_endpoints: Dict[str, str]) -> None:
         downstream_nodes: Dict[str, List[InputPortConnector[Any]]] = {}
         for name, output_port in self.output_port_connectors.items():
-            for downstream_port, is_physical in output_port.downstream_ports:
+            for downstream_port, is_physical, delay in output_port.downstream_ports:
                 downstream_node_name = downstream_port.owner.node_name
                 if downstream_node_name not in downstream_nodes:
                     downstream_nodes[downstream_node_name] = []
@@ -172,7 +172,7 @@ class NodeRuntime:
 
     def set_output_port_STAT(self, output_port_to_sta: Dict[str, Time]) -> None:
         for input_port in self.input_port_connectors.values():
-            for output_port, _is_physical in input_port.upstream_ports:
+            for output_port, is_physical, delay in input_port.upstream_ports:
                 if output_port.name in output_port_to_sta.keys():
                     output_port.set_STAT(output_port_to_sta[output_port.name])
             input_port.update_safe_to_advance_to()
@@ -400,7 +400,7 @@ class NodeRuntime:
 
         if not self.event_queue and not self.reaction_queue.has_pending() and all_done():
             for output_port in self.output_port_connectors.values():
-                for downstream_port, is_physical in output_port.downstream_ports:
+                for downstream_port, is_physical, delay in output_port.downstream_ports:
                     if downstream_port.transport is not None:
                         downstream_port.transport.send(
                             NoMoreMessage(
@@ -419,7 +419,7 @@ class NodeRuntime:
             self.coordinator_transport.close()
         closed: set[int] = set()
         for output_port in self.output_port_connectors.values():
-            for downstream_port, is_physical in output_port.downstream_ports:
+            for downstream_port, is_physical, delay in output_port.downstream_ports:
                 if downstream_port.transport is not None and id(downstream_port.transport) not in closed:
                     downstream_port.transport.close()
                     closed.add(id(downstream_port.transport))

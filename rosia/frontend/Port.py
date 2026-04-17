@@ -52,7 +52,7 @@ class OutputPort(Generic[T]):
         pass
 
     # this is just to make the compiler happy. This function will never be called. Actual code is in rosia.coordinate.Port
-    def connect(self, other: T) -> "OutputPort[T]":
+    def connect(self, other: T, delay: "Optional[Time] | int" = None) -> "OutputPort[T]":
         return self
 
     def set_STAT(self, first_timestamp: "Time") -> None:

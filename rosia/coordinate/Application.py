@@ -162,7 +162,7 @@ class Application:
                     output_port_safe_to_advance_to[port.name],
                     port.safe_to_advance_to,
                 )
-            for downstream_port, is_physical in port.downstream_ports:
+            for downstream_port, is_physical, delay in port.downstream_ports:
                 if is_physical:
                     continue
                 downstream_port.update_safe_to_advance_to()

@@ -1,22 +1,21 @@
-TIME_DIVISOR = 1000
-
-
 class Time:
     def __init__(
         self,
         value: int,
+        microstep: int = 0,
     ):
         self.value = value
+        self.microstep = microstep
 
     def to_seconds(self) -> float:
         return self.value / s.value
 
     def to_unix_time(self) -> float:
-        return self.value / (TIME_DIVISOR * 1e9)
+        return self.value / (1e9)
 
     @staticmethod
     def from_unix_time(unix_time: float) -> "Time":
-        return Time(int(unix_time * TIME_DIVISOR * 1e9))
+        return Time(int(unix_time * 1e9))
 
     def __add__(self, other) -> "Time":
         assert isinstance(other, Time), "Cannot add Time to non-Time"
@@ -24,7 +23,7 @@ class Time:
             return never
         if other == forever or self == forever:
             return forever
-        return Time(self.value + other.value)
+        return Time(self.value + other.value, self.microstep + other.microstep)
 
     def __sub__(self, other) -> "Time":
         assert isinstance(other, Time), "Cannot subtract Time from non-Time"
@@ -32,7 +31,7 @@ class Time:
             return never
         if other == forever or self == forever:
             return forever
-        return Time(self.value - other.value)
+        return Time(self.value - other.value, self.microstep - other.microstep)
 
     def __mul__(self, other) -> "Time":
         raise ValueError("Cannot multiply Time by Time")
@@ -44,7 +43,7 @@ class Time:
         if self == forever:
             return forever
         assert other >= 0, "You can only multiply Time by non-negative int or float"
-        return Time(int(other * self.value))
+        return Time(int(other * self.value), int(other * self.microstep))
 
     def __lmul__(self, other) -> "Time":
         assert isinstance(other, int) or isinstance(other, float), "You can only multiply Time by int or float"
@@ -53,7 +52,7 @@ class Time:
             return never
         if self == forever:
             return forever
-        return Time(int(other * self.value))
+        return Time(int(other * self.value), int(other * self.microstep))
 
     def __truediv__(self, other) -> "Time":
         assert isinstance(other, int) or isinstance(other, float), "You can only divide Time by int or float"
@@ -62,7 +61,7 @@ class Time:
             return never
         if self == forever:
             return forever
-        return Time(int(self.value / other))
+        return Time(int(self.value / other), int(self.microstep / other))
 
     def __floordiv__(self, other) -> "Time":
         assert isinstance(other, int) or isinstance(other, float), "You can only floor divide Time by int or float"
@@ -71,57 +70,60 @@ class Time:
             return never
         if self == forever:
             return forever
-        return Time(int(self.value // other))
+        return Time(int(self.value // other), int(self.microstep // other))
 
     def __le__(self, other) -> bool:
         assert isinstance(other, Time), "Cannot compare Time to non-Time"
-        return self.value <= other.value
+        return (self.value, self.microstep) <= (other.value, other.microstep)
 
     def __lt__(self, other) -> bool:
         assert isinstance(other, Time), "Cannot compare Time to non-Time"
-        return self.value < other.value
+        return (self.value, self.microstep) < (other.value, other.microstep)
 
     def __ge__(self, other) -> bool:
         assert isinstance(other, Time), "Cannot compare Time to non-Time"
-        return self.value >= other.value
+        return (self.value, self.microstep) >= (other.value, other.microstep)
 
     def __gt__(self, other) -> bool:
         assert isinstance(other, Time), "Cannot compare Time to non-Time"
-        return self.value > other.value
+        return (self.value, self.microstep) > (other.value, other.microstep)
 
     def __eq__(self, other) -> bool:
         assert isinstance(other, Time), f"Cannot compare Time to non-Time {other}"
-        return self.value == other.value
+        return self.value == other.value and self.microstep == other.microstep
 
     def __ne__(self, other) -> bool:
         assert isinstance(other, Time), "Cannot compare Time to non-Time"
-        return self.value != other.value
+        return self.value != other.value or self.microstep != other.microstep
 
     def __str__(self) -> str:
-        if self == never:
+        if self.value == never.value:
             return "never"
-        if self == forever:
+        if self.value == forever.value:
             return "forever"
-        if self >= s:
-            return f"{self.value / s.value: .3f}s"
-        elif self >= ms:
-            return f"{self.value / ms.value: .3f}ms"
-        elif self >= us:
-            return f"{self.value / us.value: .3f}us"
+        if self.value >= s.value:
+            base = f"{self.value / s.value: .3f}s"
+        elif self.value >= ms.value:
+            base = f"{self.value / ms.value: .3f}ms"
+        elif self.value >= us.value:
+            base = f"{self.value / us.value: .3f}us"
         else:
-            return f"{self.value / ns.value: .3f}ns"
+            base = f"{self.value / ns.value: .3f}ns"
+        if self.microstep != 0:
+            return f"{base}+{self.microstep}"
+        return base
 
     def __repr__(self):
         return self.__str__()
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        return hash((self.value, self.microstep))
 
 
-s = Time(1_000_000_000 * TIME_DIVISOR)
-ms = Time(1_000_000 * TIME_DIVISOR)
-us = Time(1_000 * TIME_DIVISOR)
-ns = Time(1 * TIME_DIVISOR)
+s = Time(1_000_000_000)
+ms = Time(1_000_000)
+us = Time(1_000)
+ns = Time(1)
 never = Time(-1)
 forever = Time(int(1e18))
 
@@ -132,3 +134,5 @@ if __name__ == "__main__":
     print(99 * us)
     print(99 * ns)
     print(min(10 * s, 12 * s))
+    print(Time(0, microstep=5))
+    print(1 * s + Time(0, microstep=3))
