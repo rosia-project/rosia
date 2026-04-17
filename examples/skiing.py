@@ -52,7 +52,7 @@ class Environment:
         log.info("Game started")
         self.observation(frame, STAT=self.dt)
 
-    @reaction([action_in], eager=True)
+    @reaction([action_in])
     def on_action(self):
         frame, _, terminated, truncated, _ = self.env.step(self.action_in)
         done = terminated or truncated

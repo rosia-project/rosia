@@ -68,7 +68,7 @@ class Environment:
         log.info("Game started")
         self.observation(frame, STAT=self.dt)
 
-    @reaction([action_in], eager=True)
+    @reaction([action_in])
     def on_action(self):
         frame, _, terminated, truncated, _ = self.env.step(self.action_in)
         done = terminated or truncated
@@ -91,27 +91,6 @@ A few things to note about `Environment`:
 - In `on_action()`, the reaction uses `yield self.dt` to advance logical time by one frame, then sends the new observation with `STAT=self.dt`. This keeps the loop running at a steady 15 Hz in logical time, regardless of how fast the wall
   clock is.
 - When the episode ends, `request_shutdown()` is called from inside the reaction, which tears down the application.
-
-### Why `eager=True`?
-
-Without [`eager=True`](../handbook/eager), `yield self.dt` would deadlock in this feedback loop:
-
-```python
-@reaction([action_in])           # ❌ deadlocks without eager=True
-def on_action(self):
-    frame, _, terminated, truncated, _ = self.env.step(self.action_in)
-    yield self.dt
-    self.observation(frame, STAT=self.dt)
-```
-
-Here's why. Normally, `yield self.dt` suspends the reaction and waits until STAT has advanced _strictly past_ `logical_time + dt` before resuming. STAT for `Environment` is determined by `action_in` — the framework waits for the next
-`action` message before it considers it safe to advance. But the next `action` cannot be produced until `Agent` receives the next `observation`, which is only sent _after_ the `yield` returns. The two nodes are stuck waiting for each other:
-a **causality loop**.
-
-`eager=True` resolves this by relaxing the STAT guard from _strictly past_ (`t < STAT`) to _at or past_ (`t <= STAT`). When the Agent's action arrives with `STAT=dt`, the Environment's yield target is exactly `dt`. Without `eager`, the
-guard blocks (`dt >= dt`). With `eager`, it passes (`dt > dt` is false, so the eager reaction proceeds).
-
-This one-tick relaxation is safe for feedback loops because the message at exactly STAT is the one this reaction itself will produce — it cannot arrive from upstream before we send it.
 
 ```python
 @Node
@@ -214,5 +193,4 @@ A single-process loop would also work for this toy example, but expressing it as
 
 - Closed-loop simulators map naturally onto two reacting nodes connected in a cycle.
 - Use `set_STAT` and the `STAT=` argument on `output_port(...)` to advertise when the next message will arrive, so the downstream node can advance logical time safely.
-- Use `@reaction([...], eager=True)` for reactions in feedback loops where a `yield` would otherwise deadlock due to a causality loop. `eager=True` relaxes the STAT guard from `t < STAT` to `t <= STAT`.
 - Seeding both `env.reset(seed=...)` and `env.action_space.seed(...)` makes the run deterministic.

@@ -12,9 +12,7 @@ The event loop (`event_loop()`) repeats these steps:
 
 1. **Drain messages**: Pull all pending messages from the transport (non-blocking). Each message updates the event queue, reaction queue, or port STAT values.
 2. **Update STAT**: Recompute the node's Safe To Advance To (STAT) time from input port STATs and the shutdown barrier.
-3. **Check for work**: The node has work if:
-   - There is an event in the event queue with timestamp $t \lt \text{STAT}$, or
-   - There is a reaction in the reaction queue with timestamp $t \leq \text{STAT}$.
+3. **Check for work**: The node has work if there is an event in the event queue or a reaction in the reaction queue with timestamp $t \lt \text{STAT}$.
 4. **Act**:
    - If there is work, call `advance_to_STAT()` to process events and reactions.
    - If there is no work and all upstream ports have finished, initiate natural shutdown.
@@ -62,13 +60,12 @@ This ensures a node never advances its logical time beyond what its upstream con
 
 1. **Drain and update**: Re-drain messages and recompute STAT (new messages may have arrived during processing).
 2. **Pick the next timestamp**: The earliest timestamp across both the event queue and reaction queue.
-3. **Boundary check**: If the next timestamp exceeds STAT, return and wait. If it equals STAT and no eager reaction is pending, also return and wait.
+3. **Boundary check**: If the next timestamp is at or beyond STAT, return and wait.
 4. **Advance logical time** to the chosen timestamp.
-5. **Execute pending reactions** at this timestamp.
-6. **Process events** at this timestamp:
+5. **Process events** at this timestamp:
    - `InputPortEvent`: Sets port values from the event, collects the associated trigger functions, and enqueues a `Reaction` for each.
    - `ShutdownEvent`: Enqueues a shutdown reaction.
-7. **Execute newly enqueued reactions** from step 6.
+6. **Execute reactions** at this timestamp.
 
 All reactions at timestamp $t$ complete before any event at $t' > t$ is processed, preserving causal order.
 

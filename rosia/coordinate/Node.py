@@ -189,7 +189,7 @@ class NodeRuntime:
             self.update_STAT()
 
             has_work = (self.event_queue.peek_time() is not None and self.event_queue.peek_time() < self.STAT) or (
-                self.reaction_queue.peek_time() is not None and self.reaction_queue.peek_time() <= self.STAT
+                self.reaction_queue.peek_time() is not None and self.reaction_queue.peek_time() < self.STAT
             )
 
             if has_work:
@@ -218,10 +218,8 @@ class NodeRuntime:
             else:
                 advance_to_time = min(next_event_timestamp, next_reaction_timestamp)
 
-            if advance_to_time > self.STAT:
+            if advance_to_time >= self.STAT:
                 return  # Wait until STAT increases
-            if advance_to_time == self.STAT and not self.reaction_queue.peek_is_eager():
-                return  # Wait unless an eager reaction is at exactly STAT
 
             if advance_to_time < self.logical_time:
                 self.logger.warning(f"Logical time decrease: {self.logical_time} -> {advance_to_time}")
@@ -231,11 +229,6 @@ class NodeRuntime:
             self.logical_time = advance_to_time
             self.logger.set_logical_time(advance_to_time)
             self.logger.set_physical_time(get_physical_time())
-
-            self.execute_reactions(advance_to_time)
-
-            if advance_to_time >= self.STAT:
-                return
 
             while self.event_queue.peek_time() is not None and self.event_queue.peek_time() == advance_to_time:
                 event = self.event_queue.pop()

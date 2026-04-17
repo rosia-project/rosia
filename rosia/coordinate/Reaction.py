@@ -14,7 +14,6 @@ class Reaction:
         function: Callable[..., Any] | Generator[Time, None, None],
         timestamp: Time,
         *args: Any,
-        eager: bool = False,
         **kwargs: Any,
     ) -> None:
         self.generator: Optional[Generator[Time, None, None]] = None
@@ -24,10 +23,6 @@ class Reaction:
         else:
             self.function = function
         self.timestamp = timestamp
-        # Detect eager from the function's _rosia_eager attribute if not explicitly set
-        if not eager and self.function is not None:
-            eager = getattr(self.function, "_rosia_eager", False)
-        self.eager = eager
         self.args = args
         self.kwargs = kwargs
 
@@ -38,7 +33,7 @@ class Reaction:
                 if not isinstance(delta, Time):
                     raise TypeError(f"Expected yield of Time, got {type(delta).__name__}: {delta}")
                 target_time = self.timestamp + delta
-                return Reaction(self.generator, target_time, eager=self.eager)
+                return Reaction(self.generator, target_time)
             except StopIteration:
                 return None
             except TerminateReactionException:
@@ -51,7 +46,7 @@ class Reaction:
                 if inspect.isgenerator(result):
                     try:
                         delta = next(result)
-                        return Reaction(result, self.timestamp + delta, eager=self.eager)
+                        return Reaction(result, self.timestamp + delta)
                     except StopIteration:
                         return None
             except TerminateReactionException:
@@ -87,11 +82,6 @@ class ReactionQueue:
         if self._heap:
             return self._heap[0][0]
         return None
-
-    def peek_is_eager(self) -> bool:
-        if self._heap:
-            return self._heap[0][2].eager
-        return False
 
     def has_pending(self) -> bool:
         return bool(self._heap)
