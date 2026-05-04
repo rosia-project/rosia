@@ -429,7 +429,51 @@ def _svg_edge(
     if len(points) >= 2:
         parts.append(_svg_arrowhead(points[-2], points[-1]))
 
+    # Delay label
+    label = _format_delay_label(edge.delay)
+    if label and len(points) >= 2:
+        lx, ly, horizontal = _longest_segment_midpoint(points)
+        if horizontal:
+            tx_label = lx
+            ty_label = ly - 4 * SCALE
+            anchor = "middle"
+        else:
+            tx_label = lx + 4 * SCALE
+            ty_label = ly
+            anchor = "start"
+        parts.append(
+            f'<text x="{tx_label}" y="{ty_label}" text-anchor="{anchor}" '
+            f'dominant-baseline="{"auto" if horizontal else "middle"}" '
+            f'font-family="{_FONT_FAMILY}" font-size="{PORT_FONT_SIZE}" '
+            f'fill="{COLORS["edge_label"]}">{escape(label)}</text>'
+        )
+
     return "\n  ".join(parts), points
+
+
+def _format_delay_label(delay: Optional["Time"]) -> str:
+    """Format a delay for compact display on a diagram edge."""
+    if delay is None:
+        return ""
+    if delay.value == 0 and delay.microstep == 0:
+        return ""
+    return f"delay = {delay}"
+
+
+def _longest_segment_midpoint(points: List[Tuple[float, float]]) -> Tuple[float, float, bool]:
+    """Return (x, y, is_horizontal) at the midpoint of the longest segment."""
+    longest_len = -1.0
+    longest_idx = 0
+    for i in range(len(points) - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        seg_len = max(abs(x2 - x1), abs(y2 - y1))
+        if seg_len > longest_len:
+            longest_len = seg_len
+            longest_idx = i
+    x1, y1 = points[longest_idx]
+    x2, y2 = points[longest_idx + 1]
+    return (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1) >= abs(y2 - y1)
 
 
 def _build_orthogonal_route(

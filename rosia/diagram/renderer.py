@@ -62,7 +62,7 @@ def render_graph(graph: "Graph") -> Tuple[Image.Image, dict]:
     # Draw external edges and collect edge JSON
     edge_json_list = []
     for edge in graph.edges:
-        points = _draw_edge(draw, edge, port_positions, y_offset)
+        points = _draw_edge(draw, edge, port_positions, y_offset, fonts["port"])
         edge_json_list.append(
             {
                 "source_port": edge.source_port,
@@ -606,6 +606,7 @@ def _draw_edge(
     edge: "Edge",
     port_positions: Dict[str, Tuple[float, float]],
     y_offset: float,
+    font: Any,
 ) -> List[Tuple[float, float]]:
     """Draw an orthogonal edge with arrowhead. Returns the point list."""
     src = port_positions.get(edge.source_port)
@@ -628,7 +629,41 @@ def _draw_edge(
     if len(points) >= 2:
         _draw_arrowhead(draw, points[-2], points[-1])
 
+    # Draw delay label
+    label = _format_delay_label(edge.delay)
+    if label and len(points) >= 2:
+        lx, ly, horizontal = _longest_segment_midpoint(points)
+        if horizontal:
+            draw.text((lx, ly - 4 * SCALE), label, fill=COLORS["edge_label"], font=font, anchor="ms")
+        else:
+            draw.text((lx + 4 * SCALE, ly), label, fill=COLORS["edge_label"], font=font, anchor="lm")
+
     return points
+
+
+def _format_delay_label(delay: Optional["Time"]) -> str:
+    """Format a delay for compact display on a diagram edge."""
+    if delay is None:
+        return ""
+    if delay.value == 0 and delay.microstep == 0:
+        return ""
+    return f"delay = {delay}"
+
+
+def _longest_segment_midpoint(points: List[Tuple[float, float]]) -> Tuple[float, float, bool]:
+    """Return (x, y, is_horizontal) at the midpoint of the longest segment."""
+    longest_len = -1.0
+    longest_idx = 0
+    for i in range(len(points) - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        seg_len = max(abs(x2 - x1), abs(y2 - y1))
+        if seg_len > longest_len:
+            longest_len = seg_len
+            longest_idx = i
+    x1, y1 = points[longest_idx]
+    x2, y2 = points[longest_idx + 1]
+    return (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1) >= abs(y2 - y1)
 
 
 def _draw_rounded_polyline(

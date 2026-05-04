@@ -53,7 +53,7 @@ class Sender:
             self.t0 = time.perf_counter()
         self.data_out((self.current_array, self.multiplier_value))
 
-    @reaction([result_in], eager=True)
+    @reaction([result_in])
     def on_result(self):
         if self.warmup:
             self.iteration += 1

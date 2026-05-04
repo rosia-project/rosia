@@ -71,13 +71,12 @@ def analyze_output_ports(func: Callable):
     return collector.output_port_names
 
 
-def reaction(triggers: List[InputPort], eager=False) -> Callable[[Callable], Callable]:
+def reaction(triggers: List[InputPort]) -> Callable[[Callable], Callable]:
     def decorator(func: Callable) -> Callable:
         output_port_names = analyze_output_ports(func)
         for input_port in triggers:
             input_port._add_trigger_function(func)
             input_port.affected_output_port_names = output_port_names
-        setattr(func, "_rosia_eager", eager)
         return func
 
     return decorator

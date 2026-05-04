@@ -1,4 +1,4 @@
-from rosia.time import Time, TIME_DIVISOR
+from rosia.time import Time
 import time
 import ctypes
 from ctypes.util import find_library
@@ -10,7 +10,7 @@ libc = ctypes.CDLL(libc_path, use_errno=True)
 
 
 def get_physical_time() -> Time:
-    return Time(time.time_ns() * TIME_DIVISOR)
+    return Time(time.time_ns())
 
 
 class Timespec(ctypes.Structure):

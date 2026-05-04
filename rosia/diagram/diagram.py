@@ -30,6 +30,7 @@ import rosia
 
 if TYPE_CHECKING:
     from rosia.coordinate.Application import NodeRuntimeInfo
+    from rosia.time import Time
 
 
 @dataclass
@@ -67,6 +68,7 @@ class Node:
 class Edge:
     source_port: str
     target_port: str
+    delay: "Optional[Time] | int" = None
     bend_points: List[Tuple[float, float]] = field(default_factory=list)
 
 
@@ -156,8 +158,8 @@ def build_graph(node_infos: "Dict[str, NodeRuntimeInfo]") -> Graph:
 
         # Build edges from output→downstream connections
         for port_name, connector in runtime.output_port_connectors.items():
-            for downstream, is_physical in connector.downstream_ports:
-                graph.edges.append(Edge(source_port=port_name, target_port=downstream.name))
+            for downstream, is_physical, delay in connector.downstream_ports:
+                graph.edges.append(Edge(source_port=port_name, target_port=downstream.name, delay=delay))
 
     return graph
 
@@ -373,7 +375,38 @@ def layout_graph(graph: Graph) -> None:
                     bend_points.append((bp["x"], bp["y"]))
                 edge.bend_points = bend_points
 
+    _reroute_self_loops(graph)
     _spread_vertical_segments(graph)
+
+
+# Padding between a self-loop route and the node it wraps (logical units).
+SELF_LOOP_PAD = 30.0
+
+
+def _reroute_self_loops(graph: Graph) -> None:
+    """Re-route self-loop edges so they wrap over the top of their node
+    instead of crossing through the node body (ELK's default for self-loops)."""
+    port_to_node: Dict[str, Node] = {}
+    for node in graph.nodes:
+        for port in node.ports:
+            port_to_node[port.id] = node
+
+    # Group self-loops by node so we can stack them at different heights.
+    loops_by_node: Dict[str, List[Edge]] = {}
+    for edge in graph.edges:
+        src = port_to_node.get(edge.source_port)
+        tgt = port_to_node.get(edge.target_port)
+        if src is not None and src is tgt:
+            loops_by_node.setdefault(src.id, []).append(edge)
+
+    for node_id, edges in loops_by_node.items():
+        node = next(n for n in graph.nodes if n.id == node_id)
+        for i, edge in enumerate(edges):
+            offset = i * MIN_EDGE_SPACING
+            rx = node.x + node.width + SELF_LOOP_PAD + offset
+            lx = node.x - SELF_LOOP_PAD - offset
+            above_y = node.y - SELF_LOOP_PAD - offset
+            edge.bend_points = [(rx, above_y), (lx, above_y)]
 
 
 # Minimum logical distance between vertical edge corridors in the same gap.

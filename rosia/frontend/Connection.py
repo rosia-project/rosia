@@ -13,7 +13,7 @@ from typing import (
 from rosia.comms.Types import ClientType
 from rosia.comms.transports import TransportBase
 from rosia.coordinate.messages.base import Message
-from rosia.time import Time, forever, never
+from rosia.time import Time
 
 if TYPE_CHECKING:
     from rosia.coordinate.Node import NodeRuntime
@@ -40,13 +40,14 @@ class InputPortConnector(PortConnector[T]):
         trigger_functions: List[Callable],
         affected_output_ports: "List[OutputPortConnector[T]]",
     ) -> None:
-        self.upstream_ports: List[Tuple[OutputPortConnector[T], bool]] = []  # (port, is_physical)
+        self.upstream_ports: List[
+            Tuple[OutputPortConnector[T], bool, Optional[Time]]
+        ] = []  # (port, is_physical, delay)
         self.trigger_functions: List[Callable] = trigger_functions
         self.value: Optional[T] = None
         self.owner = owner
         self.name = f"{owner.node_name}.{name}"
         self.input_port_runtime_object = input_port_runtime_object
-        self.safe_to_advance_to: Time = forever
 
         self.port_type: ClientType
         self.transport: Optional[TransportBase] = None  # Only set for SENDER ports (downstream ports of output ports)
@@ -56,16 +57,8 @@ class InputPortConnector(PortConnector[T]):
     def __set__(self, args: List[Any], kwargs: Dict[str, Any]) -> None:
         raise TypeError("InputPort is immutable")
 
-    def update_safe_to_advance_to(self) -> None:
-        min_safe_to_advance_to = forever
-        for upstream_port, is_physical in self.upstream_ports:
-            if is_physical:
-                continue
-            min_safe_to_advance_to = min(min_safe_to_advance_to, upstream_port.safe_to_advance_to)
-        self.safe_to_advance_to = min_safe_to_advance_to
-
     def get_upstream_port_by_name(self, name: str) -> "OutputPortConnector[T]":
-        for upstream_port, _is_physical in self.upstream_ports:
+        for upstream_port, is_physical, delay in self.upstream_ports:
             if upstream_port.name == name:
                 return upstream_port
         raise ValueError(f"Upstream port {name} not found")
@@ -86,8 +79,9 @@ class InputPortConnector(PortConnector[T]):
                 raise RuntimeError(f"Transport not set for sender port {self.name}")
             self.transport.send(msg)
         else:
-            self.value = msg.data
-            self.input_port_runtime_object._set_value(msg.data)
+            if msg.data is not None:
+                self.value = msg.data
+                self.input_port_runtime_object._set_value(msg.data)
 
     def set_value_from_event(self, value: T) -> None:
         self.value = value
@@ -104,63 +98,52 @@ class InputPortConnector(PortConnector[T]):
 # This is used to connect the output port to the input port
 class OutputPortConnector(PortConnector[T]):
     def __init__(self, owner: "NodeRuntime", name: Optional[str]) -> None:
-        self.downstream_ports: List[Tuple[InputPortConnector[T], bool]] = []
+        self.downstream_ports: List[Tuple[InputPortConnector[T], bool, Optional[Time]]] = []
         self.owner = owner
         self.name = f"{owner.node_name}.{name}"
         self.endpoint = None
-        self.safe_to_advance_to: Time = forever
-        self.last_sent_timestamp: Time = never
 
-    def set_STAT(self, first_timestamp: Time) -> None:
-        self.safe_to_advance_to = first_timestamp
-
-    def set_value(self, value: T) -> None:
-        self._set_value(value)
-
-    def _set_value(
+    def send(
         self,
-        value: T,
-        timestamp: Optional[Time] = None,
-        STAT: Optional[Time] = None,
+        value: T | None,
+        timestamp: Time,
+        ENTs: Dict[str, Time],
     ) -> None:
-        if timestamp is not None and timestamp <= self.last_sent_timestamp:
-            raise ValueError(
-                f"Timestamp {timestamp} is not greater than last sent timestamp {self.last_sent_timestamp}"
-            )
-        if timestamp is not None:
-            self.last_sent_timestamp = timestamp
-        for downstream_port, is_physical in self.downstream_ports:
+        for downstream_port, is_physical, delay in self.downstream_ports:
             if not is_physical:
+                msg_timestamp = timestamp
+                if delay is not None:
+                    msg_timestamp = msg_timestamp + delay
                 downstream_port.set_value(
                     Message(
                         data=value,
-                        timestamp=timestamp,
-                        STAT=STAT,
+                        timestamp=msg_timestamp,
+                        ENTs=ENTs,
                         from_port=self.name,
                         to_port=downstream_port.name,
                     )
                 )
-            else:
+            elif value is not None:
                 downstream_port.set_value(
                     Message(
                         data=value,
                         timestamp=None,
-                        STAT=None,
+                        ENTs=None,
                         from_port=self.name,
                         to_port=downstream_port.name,
                     )
                 )
 
-    def connect(self, other: InputPortConnector[T], physical: bool = False) -> None:
+    def connect(self, other: InputPortConnector[T], physical: bool = False, delay: Optional[Time] | int = None) -> None:
         if not isinstance(other, InputPortConnector):
             raise TypeError("Can only connect OutputPort to InputPort")
-        if (other, True) in self.downstream_ports or (
-            other,
-            False,
-        ) in self.downstream_ports:
-            raise ValueError(f"Port {other.name} is already connected to {self.name}")
-        self.downstream_ports.append((other, physical))
-        other.upstream_ports.append((self, physical))
+        for existing_port, is_physical, existing_delay in self.downstream_ports:
+            if existing_port is other:
+                raise ValueError(f"Port {other.name} is already connected to {self.name}")
+        if isinstance(delay, int):
+            delay = Time(0, microstep=delay)
+        self.downstream_ports.append((other, physical, delay))
+        other.upstream_ports.append((self, physical, delay))
 
     # >> shorthand for connect
     def __rshift__(self, other: InputPortConnector[T]) -> "OutputPortConnector[T]":

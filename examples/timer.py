@@ -36,4 +36,4 @@ if __name__ == "__main__":
     timer.output_timer >>= gen.tick
     gen.output >>= printer.input_port
     app.diagram(save_to="timer_diagram.png")
-    app.execute(trace=True)
+    app.execute()

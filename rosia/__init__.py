@@ -6,6 +6,7 @@ from rosia.frontend import (
 )
 from rosia.coordinate import Application as Application
 from rosia.coordinate import request_shutdown as request_shutdown
+from rosia.coordinate import logical_time as logical_time
 
 from rosia.rerun import RerunManager as RerunManager
 from rosia.logging import Logger as Logger

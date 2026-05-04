@@ -60,6 +60,7 @@ COLORS = {
     "edge": "#505050",
     "arrowhead": "#505050",
     "internal_edge": "#B0B0B0",
+    "edge_label": "#505050",
 }
 
 # ── Icon node configuration (unscaled values) ──────────────────────────────
