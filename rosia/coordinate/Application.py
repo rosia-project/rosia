@@ -36,13 +36,24 @@ class NodeRuntimeInfo:
 
 
 class Application:
-    def __init__(self) -> None:
+    def __init__(self, realtime: bool = True) -> None:
+        """Application-wide defaults.
+
+        ``realtime`` is the default value applied to every node created
+        through ``create_node`` unless the call explicitly overrides it.
+        Set to False when you want the whole application to run as-fast-
+        as-possible (useful for tests and simulations); individual nodes
+        can still opt back in by passing ``realtime=True`` to
+        ``create_node``."""
+        self.realtime = realtime
         self.node_infos: Dict[str, NodeRuntimeInfo] = {}
         self.node_endpoints: Dict[str, str] = {}
         self.coordinator_receiver_transport = Transport(ClientType.RECEIVER, Serializer)
         self.logger = Logger(self.__class__.__name__)
 
-    def create_node(self, node_cls: T) -> T:
+    def create_node(self, node_cls: T, realtime: Optional[bool] = None) -> T:
+        if realtime is None:
+            realtime = self.realtime
         rosia_annotations = get_rosia_annotations(node_cls)
         check_rosia_annotations(rosia_annotations)
         node_name = f"{rosia_annotations['original_cls'].__name__}_{len(self.node_infos)}"
@@ -50,6 +61,7 @@ class Application:
             rosia_annotations=rosia_annotations,
             node_name=node_name,
             coordinator_transport_endpoint=self.coordinator_receiver_transport.endpoint,
+            realtime=realtime,
         )
         self.node_infos[node_name] = NodeRuntimeInfo(node=node_runtime, executor=None)
         self.logger.debug(f"Create node: {node_name}")
