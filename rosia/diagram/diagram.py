@@ -394,6 +394,7 @@ def layout_graph(graph: Graph) -> None:
     _reroute_self_loops(graph)
     _spread_vertical_segments(graph)
     _avoid_node_body_crossings(graph)
+    _separate_collinear_overlaps(graph)
 
 
 # Padding between a self-loop route and the node it wraps (logical units).
@@ -784,6 +785,232 @@ def _detour_route(
             break
 
     return out
+
+
+def _separate_collinear_overlaps(graph: Graph) -> None:
+    """Pull collinear, overlapping segments of different edges apart.
+
+    Runs after :func:`_spread_vertical_segments` and
+    :func:`_avoid_node_body_crossings`. Those two only act on ELK bend points
+    or on routes that cross node interiors — they don't catch the case where
+    two unrelated edges happen to share a long stretch of the same H or V
+    line, which is what produces visible "double lines" in the rendered
+    diagram. The most common sources of that are:
+
+      * Multiple wrap-around routes computed by ``_wrap_around_route`` that
+        all chose the same ``above`` / ``below`` corridor or the same
+        ``tx_off`` / ``sx_off`` stub.
+      * An unbent edge whose ``_build_orthogonal_route`` midpoint coincides
+        with a vertical produced by ``_spread_vertical_segments``.
+
+    For every pair of edges (excluding fan-out siblings — those *should*
+    share their trunk segment, since they represent the same signal) we
+    find the first collinear-overlapping pair of internal segments and
+    shift one of them perpendicularly by :data:`MIN_EDGE_SPACING`. Iterates
+    until no overlaps remain or a bound is hit. Writes the result back into
+    ``edge.full_route`` so the renderer uses the corrected route.
+    """
+    if not graph.edges:
+        return
+
+    port_pos: Dict[str, Tuple[float, float]] = {}
+    for node in graph.nodes:
+        for port in node.ports:
+            x = node.x + (0 if port.is_input else node.width)
+            y = node.y + port.y
+            port_pos[port.id] = (x, y)
+
+    # Materialise every edge's full logical route. Edges that already had a
+    # ``full_route`` (from _avoid_node_body_crossings) keep it; the rest get
+    # their bend-point expansion captured so we can shift segments in place
+    # without re-deriving them at render time.
+    for edge in graph.edges:
+        if edge.full_route:
+            continue
+        src = port_pos.get(edge.source_port)
+        tgt = port_pos.get(edge.target_port)
+        if src is None or tgt is None:
+            continue
+        edge.full_route = _expand_route(src, tgt, edge.bend_points)
+
+    EPS = 0.5
+    # Two segments must share more than ~half a node-spacing of collinear
+    # length before we count them as a real visual overlap.
+    OVERLAP_THRESHOLD = MIN_EDGE_SPACING / 2.0
+
+    for _ in range(32):  # bounded outer loop
+        moved = False
+        n = len(graph.edges)
+        for i in range(n):
+            e1 = graph.edges[i]
+            if not e1.full_route:
+                continue
+            for j in range(i + 1, n):
+                e2 = graph.edges[j]
+                if not e2.full_route:
+                    continue
+                # Fan-out siblings share their source port and are *supposed*
+                # to overlap on their lead segment — they're the same signal.
+                if e1.source_port == e2.source_port:
+                    continue
+                pair = _first_collinear_overlap(e1.full_route, e2.full_route, EPS, OVERLAP_THRESHOLD)
+                if pair is None:
+                    continue
+                # Shift the second edge's segment; if it can't be shifted
+                # cleanly, fall back to shifting the first edge's segment.
+                if _shift_route_segment(e2.full_route, pair[1], MIN_EDGE_SPACING, graph.nodes):
+                    moved = True
+                    break
+                if _shift_route_segment(e1.full_route, pair[0], MIN_EDGE_SPACING, graph.nodes):
+                    moved = True
+                    break
+            if moved:
+                break
+        if not moved:
+            break
+
+
+def _classify_segment(
+    p1: Tuple[float, float],
+    p2: Tuple[float, float],
+    eps: float,
+) -> Optional[Tuple[str, float, float, float]]:
+    """Return ('H', y, x_lo, x_hi), ('V', x, y_lo, y_hi), or None."""
+    x1, y1 = p1
+    x2, y2 = p2
+    if abs(y1 - y2) < eps:
+        return ("H", (y1 + y2) / 2.0, min(x1, x2), max(x1, x2))
+    if abs(x1 - x2) < eps:
+        return ("V", (x1 + x2) / 2.0, min(y1, y2), max(y1, y2))
+    return None
+
+
+def _first_collinear_overlap(
+    r1: List[Tuple[float, float]],
+    r2: List[Tuple[float, float]],
+    eps: float,
+    threshold: float,
+) -> Optional[Tuple[int, int]]:
+    """Find the first pair of collinear, overlapping (H or V) segments
+    between ``r1`` and ``r2``. Returns segment indices (i, j) or None.
+
+    Only considers *interior* segments — the segments touching ports
+    (index 0 and the last) anchor to a port position and can't be shifted
+    in place without breaking the connection. Skipping them keeps the
+    shift algorithm simple at the cost of leaving a few port-adjacent
+    overlaps in place, which are usually short enough not to matter.
+    """
+    for i in range(1, len(r1) - 2):
+        c1 = _classify_segment(r1[i], r1[i + 1], eps)
+        if c1 is None:
+            continue
+        k1, coord1, lo1, hi1 = c1
+        for j in range(1, len(r2) - 2):
+            c2 = _classify_segment(r2[j], r2[j + 1], eps)
+            if c2 is None:
+                continue
+            k2, coord2, lo2, hi2 = c2
+            if k1 != k2:
+                continue
+            if abs(coord1 - coord2) > eps:
+                continue
+            overlap = min(hi1, hi2) - max(lo1, lo2)
+            if overlap > threshold:
+                return (i, j)
+    return None
+
+
+def _shift_route_segment(
+    route: List[Tuple[float, float]],
+    seg_idx: int,
+    shift: float,
+    nodes: List["Node"],
+) -> bool:
+    """Shift the segment at ``seg_idx`` perpendicular to its axis by ``shift``.
+
+    Tries +shift then -shift, accepting whichever keeps the modified route
+    clear of any node interior. Both endpoints of the segment move together,
+    so the route stays strictly orthogonal — the perpendicular neighbours on
+    each side just get longer or shorter.
+    """
+    if seg_idx <= 0 or seg_idx >= len(route) - 1:
+        # First/last segment anchors to a port — moving its endpoints would
+        # disconnect from the port. Leave port-adjacent overlaps alone.
+        return False
+    p1 = route[seg_idx]
+    p2 = route[seg_idx + 1]
+    cls = _classify_segment(p1, p2, 0.5)
+    if cls is None:
+        return False
+    kind = cls[0]
+
+    old1, old2 = p1, p2
+    # Try both directions. Prefer the one whose new coordinate sits farther
+    # from any node edge (more clearance) so we don't slide onto a border.
+    candidates = []
+    for sign in (+1, -1):
+        if kind == "H":
+            new_y = p1[1] + sign * shift
+            new1 = (p1[0], new_y)
+            new2 = (p2[0], new_y)
+            edge_dist = min(
+                (abs(new_y - n.y) for n in nodes),
+                default=float("inf"),
+            )
+            edge_dist = min(
+                edge_dist,
+                min((abs(new_y - (n.y + n.height)) for n in nodes), default=float("inf")),
+            )
+        else:  # "V"
+            new_x = p1[0] + sign * shift
+            new1 = (new_x, p1[1])
+            new2 = (new_x, p2[1])
+            edge_dist = min(
+                (abs(new_x - n.x) for n in nodes),
+                default=float("inf"),
+            )
+            edge_dist = min(
+                edge_dist,
+                min((abs(new_x - (n.x + n.width)) for n in nodes), default=float("inf")),
+            )
+        candidates.append((edge_dist, new1, new2))
+
+    # Highest clearance first.
+    candidates.sort(key=lambda c: -c[0])
+    for edge_dist, new1, new2 in candidates:
+        route[seg_idx] = new1
+        route[seg_idx + 1] = new2
+        if _route_has_node_overlap(route, nodes):
+            route[seg_idx] = old1
+            route[seg_idx + 1] = old2
+            continue
+        # Reject "slid onto a node border" — the renderer will draw the
+        # segment right on the border, which looks like it touches the node.
+        EDGE_EPS = 1.0
+        new_coord = new1[1] if kind == "H" else new1[0]
+        on_border = False
+        for n in nodes:
+            if kind == "H":
+                if abs(new_coord - n.y) < EDGE_EPS or abs(new_coord - (n.y + n.height)) < EDGE_EPS:
+                    # Only count if the segment x-range actually overlaps the node x-range
+                    seg_lo = min(new1[0], new2[0])
+                    seg_hi = max(new1[0], new2[0])
+                    if seg_hi > n.x + EDGE_EPS and seg_lo < n.x + n.width - EDGE_EPS:
+                        on_border = True
+                        break
+            else:
+                if abs(new_coord - n.x) < EDGE_EPS or abs(new_coord - (n.x + n.width)) < EDGE_EPS:
+                    seg_lo = min(new1[1], new2[1])
+                    seg_hi = max(new1[1], new2[1])
+                    if seg_hi > n.y + EDGE_EPS and seg_lo < n.y + n.height - EDGE_EPS:
+                        on_border = True
+                        break
+        if on_border:
+            route[seg_idx] = old1
+            route[seg_idx + 1] = old2
+            continue
+        return True
+    return False
 
 
 def _find_gap(x: float, intervals: List[Tuple[float, float]]) -> int:
