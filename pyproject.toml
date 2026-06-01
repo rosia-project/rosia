@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rosia"
-version = "0.0.7"
+version = "0.0.8"
 authors = [
   { name="depetrol", email="depetrol@outlook.com" },
 ]
@@ -51,3 +51,6 @@ filterwarnings = [
 [project.urls]
 Homepage = "https://github.com/rosia-project/rosia"
 Issues = "https://github.com/rosia-project/rosia/issues"
+
+[tool.setuptools.package-data]
+"rosia.diagram" = ["assets/*.png"]
